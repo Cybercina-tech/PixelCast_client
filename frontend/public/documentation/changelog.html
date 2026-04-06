@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>PixelCast — Changelog</title>
+  <meta name="description" content="PixelCast digital signage release notes and version history." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./assets/style.css" />
+</head>
+<body>
+  <main class="content doc-standalone">
+    <header class="hero">
+      <p class="badge">Release notes</p>
+      <h1>PixelCast changelog</h1>
+      <p>Major features, improvements, and fixes by version. Product documentation lives in <a href="./index.html">index.html</a>.</p>
+      <p class="sidebar-actions" style="margin-top: 12px;">
+        <a class="btn-sidebar" href="./index.html">← Documentation</a>
+        <a class="btn-sidebar" href="/">Home</a>
+      </p>
+    </header>
+
+    <section class="section-panel">
+      <h2>Version 1.0.3 — April 2026</h2>
+      <article class="card">
+        <ul>
+          <li>Product documentation updated to match current Django URLconf, app packages, and <code>frontend/public/documentation</code> deployment path</li>
+          <li>Clarified production port mapping (<code>8080:80</code>), license env vars, and SPA routes (analytics, commands, super-admin, auth recovery)</li>
+        </ul>
+        <div class="pill-grid">
+          <span class="pill">Docs</span>
+          <span class="pill">Accuracy</span>
+        </div>
+      </article>
+    </section>
+
+    <section class="section-panel">
+      <h2>Version 1.0.2 — April 2026</h2>
+      <article class="card">
+        <ul>
+          <li>Product documentation moved to static HTML under <code>/documentation/</code> (short URL <code>/docs</code> redirects)</li>
+          <li>Documentation content aligned with repository README and URL configuration</li>
+        </ul>
+        <div class="pill-grid">
+          <span class="pill">Docs</span>
+          <span class="pill">Deployment</span>
+        </div>
+      </article>
+    </section>
+
+    <section class="section-panel">
+      <h2>Version 1.0.1 — March 2026</h2>
+      <article class="card">
+        <ul>
+          <li>Unified API error envelope for form and validation failures</li>
+          <li>Frontend error normalizer for consistent field and form messages</li>
+          <li>Reduced duplicate panic toasts on validation errors</li>
+          <li>Inline validation feedback added to core CRUD and auth forms</li>
+        </ul>
+        <div class="pill-grid">
+          <span class="pill">Validation UX</span>
+          <span class="pill">Error normalization</span>
+          <span class="pill">Form reliability</span>
+        </div>
+      </article>
+    </section>
+
+    <section class="section-panel">
+      <h2>Version 1.0.0 — March 2026</h2>
+      <article class="card">
+        <ul>
+          <li>Initial release</li>
+          <li>Multi-screen management module</li>
+          <li>Content scheduler with recurring campaigns</li>
+          <li>SaaS / multi-tenant management controls</li>
+          <li>Template builder and reusable layout components</li>
+          <li>Error handling and operational logging tools</li>
+        </ul>
+        <div class="pill-grid">
+          <span class="pill">Dockerized deployment</span>
+          <span class="pill">Django + Vue stack</span>
+          <span class="pill">Web player</span>
+        </div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

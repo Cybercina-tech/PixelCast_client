@@ -1,0 +1,22 @@
+# Frontend Development Dockerfile - Vue.js + Vite with HMR
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install git (Vite needs it for version extraction)
+RUN apk add --no-cache git
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies (will be overwritten by volume mount, but needed for initial build)
+RUN npm ci
+
+# Copy source (will be overwritten by volume mount)
+COPY . .
+
+# Expose Vite dev server port
+EXPOSE 5173
+
+# Run development server (HMR enabled via vite.config.js)
+CMD ["npm", "run", "dev"]

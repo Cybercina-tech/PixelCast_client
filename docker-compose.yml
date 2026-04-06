@@ -1,0 +1,130 @@
+# Local development compose: Vite dev server + Django runserver/hot reload + bind mounts.
+# Production/server deploy uses docker-compose.prod.yml.
+#
+# Environment policy:
+# - Compose services load ONLY `.env` (required).
+# - `.env.example` is documentation/template only; never loaded by Compose.
+# - `environment:` below still overrides values when defined.
+services:
+  # Postgres: default DB_PASSWORD matches Pixelcast_client SetupWizard; override in .env.
+  db:
+    image: postgres:15-alpine
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      - POSTGRES_DB=${DB_NAME:-pixelcast_signage_db}
+      - POSTGRES_USER=${DB_USER:-pixelcast_signage_user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-PCgPxCl_X8nM4pQ7wK2vL9jH5cF3yT6sA1eB0dZgM}
+      # Use an internal subdirectory to avoid initdb failure when mount root contains artifacts.
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # Probe DB `postgres` (always exists). Using APP DB_NAME here blocks "healthy" when the app DB is missing yet.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: always
+
+  backend:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    command: sh /app/entrypoint.sh
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      # Omit PIXELCAST_SIGNAGE_ENV_FILE so CI/Dokploy clones without a host .env file still boot.
+      - SECRET_KEY=${SECRET_KEY:-wN9vQx2!mK7pR4tY8uH3cD6sL1zA5eB9fG2jT7nV4qP8xM3rK6hC1wZ}
+      - DEBUG=${DEBUG:-False}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,backend,frontend,.traefik.me}
+      # Same DB_* as service `db` above.
+      - DB_NAME=${DB_NAME:-pixelcast_signage_db}
+      - DB_USER=${DB_USER:-pixelcast_signage_user}
+      - DB_PASSWORD=${DB_PASSWORD:-PCgPxCl_X8nM4pQ7wK2vL9jH5cF3yT6sA1eB0dZgM}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - USE_REDIS_CACHE=${USE_REDIS_CACHE:-True}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
+      - ENABLE_HOT_RELOAD=${ENABLE_HOT_RELOAD:-true}
+      # Create admin@pixelcast.com / adminadmin on first boot if that email is missing (local dev only).
+      - BOOTSTRAP_DEFAULT_ADMIN=${BOOTSTRAP_DEFAULT_ADMIN:-true}
+      # Vite proxies to http://backend:8000. If .env has BASE_URL=https://..., Django infers
+      # SECURE_SSL_REDIRECT=True and responds 301 to HTTPS — POST /api/auth/login/ then fails.
+      # Force off for this local Compose stack (TLS terminates on Traefik/nginx in prod, not here).
+      - SECURE_SSL_REDIRECT=false
+    volumes:
+      - ./app:/app
+      - backend_media:/app/media
+      - backend_static:/app/staticfiles
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    command:
+      - sh
+      - /app/docker-entrypoint-dev.sh
+      - npm
+      - run
+      - dev
+      - --
+      - --host
+      - 0.0.0.0
+      - --port
+      - "5173"
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      # Browser must use same-origin /api (never https://backend:8000 — not resolvable outside Docker network).
+      - VITE_API_BASE_URL=/api
+      - VITE_IOT_BASE_URL=/iot
+      # Vite server only: where to proxy /api, /ws, /iot (reachable as backend:8000 inside Compose).
+      - VITE_PROXY_TARGET=http://backend:8000
+      # Browser WebSocket uses same origin as Vite; /ws is proxied to backend (avoid ws://localhost:8000 when :8000 is not published).
+      # Override only if needed: VITE_WS_URL=wss://your-domain
+      # For HTTPS-reverse-proxy dev, set VITE_BEHIND_HTTPS_PROXY=1. See .env.example.
+      - VITE_BEHIND_HTTPS_PROXY=${VITE_BEHIND_HTTPS_PROXY:-0}
+      - VITE_HMR_PROTOCOL=${VITE_HMR_PROTOCOL:-}
+      - VITE_HMR_CLIENT_PORT=${VITE_HMR_CLIENT_PORT:-}
+      - VITE_HMR_HOST=${VITE_HMR_HOST:-}
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      backend:
+        condition: service_started
+    # Host port → container 5173. Use FRONTEND_HOST_PORT (not FRONTEND_PORT) so platforms
+    # that inject FRONTEND_PORT=80 for unrelated reasons do not steal host :80 from Traefik.
+    ports:
+      - "${FRONTEND_HOST_PORT:-5173}:5173"
+    restart: always
+
+volumes:
+  postgres_data:
+  redis_data:
+  backend_media:
+  backend_static:

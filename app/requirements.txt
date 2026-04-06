@@ -1,0 +1,72 @@
+# PixelCast Signage - Digital Signage System
+# Django Project Requirements
+
+# Core Framework
+Django>=5.2.9,<6.0
+
+# Image Processing (required for ImageField in Template model)
+Pillow>=10.0.0  # Updated to support Python 3.14 (Pillow 11+ has Python 3.14 support)
+
+# HTTP Requests (required for Content download functionality)
+requests>=2.31.0,<3.0
+
+# Django REST Framework (required for API endpoints)
+djangorestframework>=3.14.0,<4.0
+
+# JWT Authentication
+djangorestframework-simplejwt>=5.2.0,<6.0
+
+# Django Channels for WebSocket support
+channels>=4.0.0,<5.0
+channels-redis>=4.2.0,<5.0  # Optional: for production Redis backend
+
+# File Storage (S3 and Local)
+boto3>=1.28.0,<2.0  # AWS S3 SDK
+django-storages[boto3]>=1.14.0,<2.0  # Django storage backends for S3
+# python-magic-bin>=0.4.14  # For MIME type detection (Windows-compatible package)
+
+# Date/Time Utilities (for accurate recurrence calculation)
+python-dateutil>=2.8.0,<3.0  # Reliable date/time recurrence rules
+
+# Notification System Dependencies
+cryptography>=41.0.0,<43.0  # For encrypting sensitive channel configs
+celery>=5.3.0,<6.0  # Async task queue for notification delivery
+redis>=5.0.0,<6.0  # Celery broker (optional but recommended)
+twilio>=8.10.0,<9.0  # SMS provider (optional)
+
+# Database (SQLite is included with Python, but you can add PostgreSQL/MySQL drivers if needed)
+psycopg2-binary>=2.9.0  # PostgreSQL adapter
+# For MySQL: mysqlclient>=2.2.0
+
+# Development Dependencies (optional, uncomment if needed)
+# django-debug-toolbar>=4.2.0  # For debugging in development
+# ipython>=8.0.0  # Enhanced Python shell
+# black>=23.0.0  # Code formatter
+# flake8>=6.0.0  # Linter
+
+# Testing Dependencies
+pytest>=7.4.0
+pytest-django>=4.5.0
+pytest-cov>=4.1.0
+coverage>=7.3.0
+
+# API Documentation (Swagger/OpenAPI)
+drf-spectacular>=0.27.0  # Auto-generates OpenAPI 3.0 schema from DRF code
+
+# Environment Variables
+python-dotenv>=1.0.0  # Load environment variables from .env file
+
+# Stripe (optional — Platform SaaS billing webhooks and sync)
+stripe>=7.0.0,<12.0
+
+# TOTP 2FA
+pyotp>=2.9.0,<3.0
+
+# CORS Headers
+django-cors-headers>=4.3.0  # Handle Cross-Origin Resource Sharing (CORS)
+
+# Redis Cache Backend (optional, for production)
+# Note: Django 5.2+ has built-in Redis support via django.core.cache.backends.redis.RedisCache
+# For additional features like pattern deletion, you may want django-redis:
+# django-redis>=5.4.0,<6.0  # Uncomment if needed
+

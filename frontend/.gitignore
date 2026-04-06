@@ -1,0 +1,39 @@
+# -----------------------------------------------------------------------------
+# Use a leading "/" so patterns apply only under frontend/ (this file's root).
+# A bare name like "logs" matches every path segment named logs — including
+# src/pages/logs/ and would drop source files from git / Docker builds.
+# -----------------------------------------------------------------------------
+
+# Dependencies & build output
+/node_modules
+/dist
+/dist-ssr
+/dist.zip
+
+# Local log directory (not src/pages/logs/)
+/logs
+
+# Playwright / E2E artifacts
+/test-results
+/playwright-report
+/blob-report
+
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

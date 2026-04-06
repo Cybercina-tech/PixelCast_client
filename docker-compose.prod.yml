@@ -1,0 +1,202 @@
+# Production: Nginx serves the Vue build; Gunicorn+Uvicorn serves Django.
+# Paths match the repo (frontend/, app/) so builds work on case-sensitive Linux (Dokploy, CI).
+#
+# Deploy:
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Configure env: SECRET_KEY, ALLOWED_HOSTS, DB_PASSWORD, CSRF_TRUSTED_ORIGINS or BASE_URL.
+#
+# Published host port is fixed to 8080 (container still listens on 80). Port 80 on the host is
+# often taken by Traefik/reverse proxy.
+#
+# Environment policy:
+# - Compose services load ONLY `.env` (required).
+# - `.env.example` is documentation/template only; never loaded by Compose.
+# - Dokploy can still inject/override env vars at runtime.
+#
+# Dokploy / Traefik: attach `frontend` and `backend` to `dokploy-network` (external) so the proxy can reach them.
+# Do not bind-mount `./documentation` here — that path may not exist on the server build context and can break the container.
+
+services:
+  # db + backend: same DB_PASSWORD as POSTGRES_PASSWORD (default matches Pixelcast_client SetupWizard).
+  db:
+    image: postgres:15-alpine
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      - POSTGRES_DB=${DB_NAME:-pixelcast_signage_db}
+      - POSTGRES_USER=${DB_USER:-pixelcast_signage_user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-PCgPxCl_X8nM4pQ7wK2vL9jH5cF3yT6sA1eB0dZgM}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # Probe `postgres` DB only — app DB may be created later by backend (ensure_postgres_db).
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: always
+
+  backend:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    command: sh /app/entrypoint.sh
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-wN9vQx2!mK7pR4tY8uH3cD6sL1zA5eB9fG2jT7nV4qP8xM3rK6hC1wZ}
+      - DEBUG=${DEBUG:-False}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,backend,frontend,.traefik.me}
+      - BASE_URL=${BASE_URL:-}
+      - DEPLOYMENT_MODE=${DEPLOYMENT_MODE:-client}
+      - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS:-}
+      - DB_NAME=${DB_NAME:-pixelcast_signage_db}
+      - DB_USER=${DB_USER:-pixelcast_signage_user}
+      # Same DB_PASSWORD as service `db` (POSTGRES_PASSWORD).
+      - DB_PASSWORD=${DB_PASSWORD:-PCgPxCl_X8nM4pQ7wK2vL9jH5cF3yT6sA1eB0dZgM}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - USE_REDIS_CACHE=${USE_REDIS_CACHE:-True}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
+      - ENABLE_HOT_RELOAD=false
+      - BOOTSTRAP_DEFAULT_ADMIN=false
+      - INSTALLATION_STATE_DIR=/app/installation_state
+      - GUNICORN_WORKERS=${GUNICORN_WORKERS:-4}
+    volumes:
+      - backend_media:/app/media
+      - backend_static:/app/staticfiles
+      - installation_state:/app/installation_state
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8000/api/health/ >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 180s
+    restart: always
+    networks:
+      - default
+      - dokploy-network
+
+  celery-worker:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    command: celery -A Screengram worker -l info
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-wN9vQx2!mK7pR4tY8uH3cD6sL1zA5eB9fG2jT7nV4qP8xM3rK6hC1wZ}
+      - DEBUG=${DEBUG:-False}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,backend,frontend,.traefik.me}
+      - BASE_URL=${BASE_URL:-}
+      - DEPLOYMENT_MODE=${DEPLOYMENT_MODE:-client}
+      - DB_NAME=${DB_NAME:-pixelcast_signage_db}
+      - DB_USER=${DB_USER:-pixelcast_signage_user}
+      - DB_PASSWORD=${DB_PASSWORD:-PCgPxCl_X8nM4pQ7wK2vL9jH5cF3yT6sA1eB0dZgM}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    restart: always
+    networks:
+      - default
+
+  celery-beat:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    command: celery -A Screengram beat -l info
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-wN9vQx2!mK7pR4tY8uH3cD6sL1zA5eB9fG2jT7nV4qP8xM3rK6hC1wZ}
+      - DEBUG=${DEBUG:-False}
+      - DEPLOYMENT_MODE=${DEPLOYMENT_MODE:-client}
+      - DB_NAME=${DB_NAME:-pixelcast_signage_db}
+      - DB_USER=${DB_USER:-pixelcast_signage_user}
+      - DB_PASSWORD=${DB_PASSWORD:-PCgPxCl_X8nM4pQ7wK2vL9jH5cF3yT6sA1eB0dZgM}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    restart: always
+    networks:
+      - default
+
+  frontend:
+    # Context = repo root; Vue SPA includes /docs (product documentation).
+    # VITE_* are build-time: must be /api so the browser hits Nginx, which proxies to backend:8000.
+    # Do not rely on host .env for these — wrong values (e.g. https://backend:8000/api) break the browser.
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+        VITE_IOT_BASE_URL: /iot
+    volumes:
+      - backend_media:/app/media:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+    restart: always
+    networks:
+      - default
+      - dokploy-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  backend_media:
+  backend_static:
+  installation_state:
+
+networks:
+  # Create once on the host if missing: `docker network create dokploy-network`
+  dokploy-network:
+    external: true

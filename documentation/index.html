@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>PixelCast — Product documentation</title>
+  <meta name="description" content="PixelCast digital signage: architecture, Docker deployment, environment variables, APIs, SaaS mode, WebSockets, troubleshooting, and operations." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./assets/style.css" />
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">PC</div>
+        <div>
+          <p class="brand-name">PixelCast</p>
+          <p class="brand-meta">Technical documentation</p>
+        </div>
+      </div>
+      <p class="sidebar-actions">
+        <a class="btn-sidebar" href="/">Home</a>
+        <a class="btn-sidebar" href="/blog">Blog</a>
+        <a class="btn-sidebar" href="./changelog.html">Changelog</a>
+      </p>
+      <nav aria-label="Table of contents">
+        <details class="toc-mobile">
+          <summary>Table of contents</summary>
+          <ol>
+            <li><a href="#introduction">Introduction</a></li>
+            <li><a href="#how-to-read-this-doc">How this doc is served</a></li>
+            <li><a href="#architecture">Architecture</a></li>
+            <li><a href="#repository-layout">Repository layout</a></li>
+            <li><a href="#requirements">Requirements</a></li>
+            <li><a href="#installation">Installation</a></li>
+            <li><a href="#env-configuration">Configuration (.env)</a></li>
+            <li><a href="#urls-and-api">URLs, API &amp; OpenAPI</a></li>
+            <li><a href="#realtime">WebSockets &amp; IoT paths</a></li>
+            <li><a href="#saas-setup">SaaS &amp; deployment modes</a></li>
+            <li><a href="#product-features">Product features</a></li>
+            <li><a href="#operations">Operations, logs &amp; updates</a></li>
+            <li><a href="#troubleshooting">Troubleshooting</a></li>
+            <li><a href="#testing">Running tests</a></li>
+            <li><a href="#faq">FAQ</a></li>
+            <li><a href="#support">Support</a></li>
+          </ol>
+        </details>
+        <h2 class="toc-title">Table of contents</h2>
+        <ol>
+          <li><a href="#introduction">Introduction</a></li>
+          <li><a href="#how-to-read-this-doc">How this doc is served</a></li>
+          <li><a href="#architecture">Architecture</a></li>
+          <li><a href="#repository-layout">Repository layout</a></li>
+          <li><a href="#requirements">Requirements</a></li>
+          <li><a href="#installation">Installation</a></li>
+          <li><a href="#env-configuration">Configuration (.env)</a></li>
+          <li><a href="#urls-and-api">URLs, API &amp; OpenAPI</a></li>
+          <li><a href="#realtime">WebSockets &amp; IoT paths</a></li>
+          <li><a href="#saas-setup">SaaS &amp; deployment modes</a></li>
+          <li><a href="#product-features">Product features</a></li>
+          <li><a href="#operations">Operations, logs &amp; updates</a></li>
+          <li><a href="#troubleshooting">Troubleshooting</a></li>
+          <li><a href="#testing">Running tests</a></li>
+          <li><a href="#faq">FAQ</a></li>
+          <li><a href="#support">Support</a></li>
+        </ol>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <header class="hero">
+        <p class="badge">Product documentation</p>
+        <h1>PixelCast — complete technical guide</h1>
+        <p>
+          PixelCast is a self-hosted or SaaS digital signage system: Django REST back end, real-time channels, a Vue 3
+          admin SPA, and a browser-based web player. This page describes how the repository is structured, how to run and
+          configure it, and where to find APIs and operational tools.
+        </p>
+        <div class="notice warning">
+          <strong>Security:</strong> Never commit a real <code>.env</code> file. Use strong <code>SECRET_KEY</code> and
+          <code>DB_PASSWORD</code> values in production, and keep <code>DEBUG=False</code> outside local development.
+        </div>
+        <div class="notice success">
+          <strong>Docker:</strong> Development uses <code>docker-compose.yml</code> (Vite + Uvicorn hot reload). Production
+          uses <code>docker-compose.prod.yml</code> (Nginx + Gunicorn/Uvicorn). The production frontend image serves this
+          HTML under <code>/documentation/</code>.
+        </div>
+      </header>
+
+      <section id="introduction" class="section-panel">
+        <h2>1) Introduction</h2>
+        <p>
+          You can manage screens, templates, media, schedules, and device commands from the admin UI. Devices and web
+          players talk to the same back end over HTTPS and WebSockets; heavy work (email, SMS, billing webhooks) runs
+          through Celery workers backed by Redis.
+        </p>
+        <div class="diagram-flow" aria-label="Request flow">
+          <div class="node">Browser / player</div>
+          <div class="arrow">→</div>
+          <div class="node">Nginx (SPA + proxy)</div>
+          <div class="arrow">→</div>
+          <div class="node">Django (Gunicorn + Uvicorn)</div>
+          <div class="arrow">→</div>
+          <div class="node">PostgreSQL</div>
+          <div class="arrow">+</div>
+          <div class="node">Redis</div>
+        </div>
+      </section>
+
+      <section id="how-to-read-this-doc" class="section-panel">
+        <h2>2) How this documentation is served</h2>
+        <p>
+          Canonical copies of these pages live under <code>documentation/</code> at the repository root. The same HTML and
+          CSS are mirrored into <code>frontend/public/documentation/</code> so Vite (dev) and the production build emit them
+          under <code>/documentation/</code> (e.g. <code>/documentation/index.html</code>). Nginx in the frontend
+          container serves that path; short URLs <code>/docs</code> and <code>/docs/changelog</code> in the SPA redirect to
+          the static files. After editing files under <code>documentation/</code>, copy them into
+          <code>frontend/public/documentation/</code> (or rebuild from a CI step that syncs both).
+        </p>
+        <div class="card">
+          <h3>Files in the package</h3>
+          <pre><code>documentation/                    # source (edit here)
+├── index.html
+├── changelog.html
+└── assets/
+    ├── style.css
+    └── screenshots/                # optional; figures hide if missing
+
+frontend/public/documentation/      # shipped with the SPA build</code></pre>
+        </div>
+        <p>
+          For marketing and long-form guides, use the in-app <a href="/blog">blog</a>. For interactive REST exploration,
+          authenticated operators can use <strong>OpenAPI / Swagger</strong> at <code>/api/docs/</code> (see below).
+        </p>
+      </section>
+
+      <section id="architecture" class="section-panel">
+        <h2>3) Architecture (verified stack)</h2>
+        <div class="grid two">
+          <article class="card">
+            <h3>Back end</h3>
+            <ul>
+              <li>Python 3.12, Django 5.2.x, Django REST Framework, djangorestframework-simplejwt</li>
+              <li>Django Channels (ASGI) for WebSockets; Redis channel layer in production-style deployments</li>
+              <li>Celery with Redis as broker and result backend</li>
+              <li>PostgreSQL 15 in Docker; SQLite optional for local experiments (<code>USE_SQLITE=True</code>)</li>
+              <li>drf-spectacular: schema at <code>/api/schema/</code>, Swagger UI at <code>/api/docs/</code>, ReDoc at <code>/api/redoc/</code> (legacy Django routes <code>/docs/</code> and <code>/swagger/</code> also exist)</li>
+            </ul>
+          </article>
+          <article class="card">
+            <h3>Front end &amp; delivery</h3>
+            <ul>
+              <li>Vue 3, Vite, Pinia, Vue Router, Tailwind CSS, Chart.js (analytics charts)</li>
+              <li>Production: multi-stage Docker build (Node 20 → Nginx Alpine)</li>
+              <li>Nginx terminates HTTP, serves the SPA and static docs, and reverse-proxies <code>/api/</code>, <code>/iot/</code>, <code>/ws/</code>, <code>/media/</code>, etc.</li>
+            </ul>
+          </article>
+        </div>
+        <p>
+          The Django settings package is <code>Screengram</code> under <code>app/Screengram/</code> (<code>ROOT_URLCONF</code>
+          is <code>Screengram.urls</code>); product branding in the UI is PixelCast. IoT routes are mounted at
+          <code>/iot/</code> and (for backward compatibility) <code>/public-iot/</code>, both including the same
+          <code>signage</code> URLs, while authenticated app traffic also uses <code>/api/…</code> for signage and related
+          endpoints.
+        </p>
+      </section>
+
+      <section id="repository-layout" class="section-panel">
+        <h2>4) Repository layout</h2>
+        <pre><code>├── app/                         # Django project (manage.py lives here)
+│   ├── Screengram/              # settings, ASGI/WSGI, root URLconf
+│   ├── accounts/                # users, JWT, 2FA/TOTP, SSO hooks, invitations, RBAC
+│   ├── analytics/               # dashboard metrics APIs
+│   ├── api_docs/                # protected Swagger / ReDoc / OpenAPI views
+│   ├── blog/                    # public blog API + platform admin content API
+│   ├── bulk_operations/         # batch action endpoints
+│   ├── commands/                # remote device commands API
+│   ├── content_validation/      # upload validation helpers API
+│   ├── core/                    # audit, backups, rate limits, system email, deployment helpers
+│   ├── licensing/               # license enforcement, operator gateway, registry APIs
+│   ├── log/                     # centralized error logging API + middleware
+│   ├── notifications/         # email/SMS (Twilio) channels, Celery tasks
+│   ├── saas_platform/           # tenants, Stripe, super-admin reporting
+│   ├── setup/                   # installation wizard API
+│   ├── signage/                 # screens, IoT, pairing, heartbeat (also mounted at /iot/)
+│   ├── templates/               # template authoring, media, QR redirect routes
+│   ├── tickets/                 # helpdesk (queues, SLA, operator bridge, platform APIs)
+│   ├── tests/                   # pytest suite (shared under app/tests)
+│   ├── Dockerfile
+│   ├── entrypoint.sh
+│   └── requirements.txt
+├── frontend/                    # Vue 3 SPA, Vite, Nginx config, Dockerfiles
+├── documentation/               # static HTML product docs (mirrored to frontend/public/documentation/)
+├── docker-compose.yml           # dev: Vite 5173, Django 8000, db, redis
+├── docker-compose.prod.yml      # prod: Nginx + Gunicorn/Uvicorn stack
+├── install.sh
+├── .env.example                 # env template (copy to .env)
+├── requirements.txt             # mirrors app/requirements.txt for tooling
+└── README.md</code></pre>
+      </section>
+
+      <section id="requirements" class="section-panel">
+        <h2>5) Requirements</h2>
+        <div class="grid two">
+          <article class="card">
+            <h3>Runtime &amp; tooling</h3>
+            <ul>
+              <li>Docker Engine 24+ and Docker Compose v2 (recommended path)</li>
+              <li>Python 3.12+ if you run Django on the host</li>
+              <li>Node.js 20+ for front-end builds (matches <code>frontend/Dockerfile</code>)</li>
+              <li>PostgreSQL 15+ (or SQLite for dev only)</li>
+              <li>Redis 7+ for cache, Celery, and channel layer</li>
+            </ul>
+          </article>
+          <article class="card">
+            <h3>Browser support (admin &amp; player)</h3>
+            <ul>
+              <li>Current evergreen Chrome, Firefox, Safari, Edge</li>
+              <li>Players need WebSocket support for live template pushes</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section id="installation" class="section-panel">
+        <h2>6) Installation</h2>
+        <h3>6a) Development with Docker (recommended)</h3>
+        <ol class="steps">
+          <li>
+            <h3>Clone and create environment</h3>
+            <pre><code>cp .env.example .env
+# Edit SECRET_KEY, DB_PASSWORD, ALLOWED_HOSTS, CSRF_TRUSTED_ORIGINS, BASE_URL as needed</code></pre>
+          </li>
+          <li>
+            <h3>Start the stack</h3>
+            <pre><code>docker compose up --build</code></pre>
+            <p>Open the Vite dev app at <code>http://localhost:5173</code>. Django is available through the proxy at
+            same-origin <code>/api/</code> — do not point the browser at <code>http://backend:8000</code> (that hostname
+            exists only inside the Compose network).</p>
+          </li>
+        </ol>
+        <h3>6b) Production with Docker</h3>
+        <pre><code>docker compose -f docker-compose.prod.yml up -d --build</code></pre>
+        <p>
+          The production compose file maps the frontend container to <strong>host port 8080</strong>
+          (<code>8080:80</code> on the <code>frontend</code> service). To use another host port, change that mapping (or
+          terminate TLS on a reverse proxy and do not publish the container port publicly). Both <code>frontend</code> and
+          <code>backend</code> attach to the external network <code>dokploy-network</code> when present—create it on the
+          host if you deploy behind Traefik/Dokploy. Static documentation is baked into the frontend image from
+          <code>frontend/public/documentation/</code>; avoid bind-mounting <code>documentation/</code> unless you control
+          that path on every host.
+        </p>
+        <h3>6c) Installer script</h3>
+        <pre><code>chmod +x install.sh &amp;&amp; ./install.sh</code></pre>
+        <h3>6d) First-run wizard</h3>
+        <p>
+          After containers are healthy, open <code>/install</code> in the browser to complete database checks and create
+          the first administrator. Setup APIs live under <code>/api/setup/</code>.
+        </p>
+        <div class="service-grid">
+          <div class="service-card"><strong>db</strong><span>PostgreSQL 15 with a persistent volume</span></div>
+          <div class="service-card"><strong>redis</strong><span>Cache, Celery broker, Channels layer</span></div>
+          <div class="service-card"><strong>backend</strong><span>Django ASGI, migrations on boot</span></div>
+          <div class="service-card"><strong>frontend</strong><span>Dev: Vite; Prod: Nginx + built SPA + this HTML</span></div>
+        </div>
+      </section>
+
+      <section id="env-configuration" class="section-panel">
+        <h2>7) Configuration (.env)</h2>
+        <p>
+          Compose loads only <code>.env</code> from the project root; <code>.env.example</code> is a template and is not
+          loaded automatically. Mirror <code>DB_*</code> credentials into <code>POSTGRES_*</code> for the database
+          container when using the bundled Postgres service.
+        </p>
+        <pre><code># — excerpt; see .env.example for the full list —
+
+# Django
+SECRET_KEY=&lt;generate-a-long-random-string&gt;
+DEBUG=False
+ALLOWED_HOSTS=your.domain,localhost,127.0.0.1
+CSRF_TRUSTED_ORIGINS=https://your.domain
+BASE_URL=https://your.domain
+
+# Database (Docker service name is usually `db`)
+DB_HOST=db
+DB_NAME=pixelcast_signage_db
+DB_USER=pixelcast_signage_user
+DB_PASSWORD=&lt;your-secure-password&gt;
+DB_PORT=5432
+
+# Redis / Celery
+REDIS_HOST=redis
+REDIS_PORT=6379
+CELERY_BROKER_URL=redis://redis:6379/0
+CELERY_RESULT_BACKEND=redis://redis:6379/0
+USE_REDIS_CACHE=True
+
+# Deployment mode: saas | self_hosted | hybrid
+DEPLOYMENT_MODE=hybrid
+PLATFORM_SAAS_ENABLED=True
+
+# Stripe (SaaS billing — optional per deployment)
+STRIPE_SECRET_KEY=
+STRIPE_PUBLISHABLE_KEY=
+STRIPE_WEBHOOK_SECRET=
+
+# License / marketplace (see .env.example for full registry + grace tuning)
+LICENSE_ENFORCEMENT_ENABLED=True
+LICENSE_GATEWAY_BASE_URL=     # self-hosted installs (operator ↔ license service)
+LICENSE_SERVER_URL=           # SaaS / gateway URL when applicable
+CODECANYON_TOKEN=
+
+# Optional integrations
+OPENWEATHER_API_KEY=          # weather widget in templates
+SSO_ENABLED=False             # SSO-ready account flows when True</code></pre>
+        <div class="pill-grid">
+          <span class="pill">Never commit real secrets</span>
+          <span class="pill">Use UTC on servers for schedules</span>
+          <span class="pill">Set PUBLIC_WEB_APP_URL for email links</span>
+          <span class="pill">ANDROID_TV_APK_URL → GET /api/public/downloads/</span>
+          <span class="pill">CHANNEL_LAYERS_BACKEND=redis in real deployments</span>
+        </div>
+      </section>
+
+      <section id="urls-and-api" class="section-panel">
+        <h2>8) URLs, API &amp; OpenAPI</h2>
+        <p>These paths are defined in <code>app/Screengram/urls.py</code> and related URLconfs.</p>
+        <div class="card">
+          <h3>Common browser routes (Vue SPA)</h3>
+          <ul>
+            <li><code>/</code> — marketing / landing</li>
+            <li><code>/login</code>, <code>/signup</code>, <code>/forgot-password</code>, <code>/reset-password</code>, <code>/install</code></li>
+            <li><code>/player</code> — web player (pairing and playback)</li>
+            <li><code>/blog</code>, <code>/pricing</code>, <code>/data-center</code> — public content</li>
+            <li><code>/docs</code> — redirects to static product documentation</li>
+            <li><code>/dashboard</code>, <code>/screens</code>, <code>/templates</code>, <code>/schedules</code>, <code>/commands</code>, <code>/analytics</code>, … — signed-in app</li>
+            <li><code>/super-admin/…</code> — platform operator console (when your account is allowed)</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>API groups (see <code>app/Screengram/urls.py</code>)</h3>
+          <pre><code>/api/setup/                 # installation wizard
+/api/health/               # JSON health probe
+/api/public/downloads/     # Android TV APK URL JSON
+/api/public/deployment/    # deployment metadata
+/api/public/pricing/       # public pricing snapshot
+/api/public/blog/          # public blog feed/content
+/api/license/              # license activation &amp; enforcement API
+/api/license-registry/v1/  # license registry (telemetry / admin integrations)
+/api/platform/blog/        # platform blog admin API
+/api/platform/tickets/     # platform ticket admin API
+/api/platform/             # SaaS super-admin (tenants, Stripe, reporting…)
+/api/auth/…                # JWT, sessions, invitations (accounts.urls)
+/api/…                     # signage, templates, commands, bulk_operations,
+                           # content_validation, analytics (see each app’s urls)
+/api/tickets/              # requester helpdesk API
+/api/core/                 # audit, backup, infrastructure
+/api/logs/                 # centralized error log ingestion
+/api/admin/errors/         # admin error log API (DRF router)
+/iot/ …                    # same signage IoT routes, same-origin for browsers
+/public-iot/ …             # legacy alias for signage IoT URLs
+/qr/&lt;slug&gt;/               # QR action redirects (templates)
+/api/docs/                 # Swagger UI (authenticated)
+/api/redoc/                # ReDoc (authenticated)
+/api/schema/               # OpenAPI schema</code></pre>
+        </div>
+        <p>
+          Administrative API documentation is protected — you must sign in as a user who is allowed to view schema (see
+          <code>api_docs</code> views). The JSON health check is lightweight and suitable for uptime monitors.
+        </p>
+      </section>
+
+      <section id="realtime" class="section-panel">
+        <h2>9) WebSockets &amp; IoT paths</h2>
+        <ul>
+          <li><strong>WebSockets:</strong> Nginx proxies <code>/ws/</code> to Django Channels (upgrade headers in <code>frontend/nginx.conf</code>). Configure <code>CHANNEL_LAYERS_BACKEND</code> (and Redis) for production-style multi-worker setups.</li>
+          <li><strong>IoT:</strong> Browsers and players should call same-origin <code>/iot/…</code> (build-time <code>VITE_IOT_BASE_URL=/iot</code> in Docker) so hostnames like <code>backend:8000</code> never appear in the client.</li>
+          <li><strong>Media:</strong> With local disk storage, Django serves uploads under <code>/media/</code> even when <code>DEBUG=False</code>; Nginx is configured to proxy that path to the backend.</li>
+        </ul>
+      </section>
+
+      <section id="saas-setup" class="section-panel">
+        <h2>10) SaaS &amp; deployment modes</h2>
+        <ul>
+          <li><code>DEPLOYMENT_MODE=self_hosted</code> — single-tenant style; platform SaaS features follow settings.</li>
+          <li><code>DEPLOYMENT_MODE=saas</code> — multi-tenant operation with super-admin tooling.</li>
+          <li><code>DEPLOYMENT_MODE=hybrid</code> — common middle ground; <code>PLATFORM_SAAS_ENABLED</code> gates Stripe, tenant admin, and related APIs.</li>
+        </ul>
+        <p>
+          Stripe Checkout, customer portal, and webhooks are integrated under <code>saas_platform</code>. Per-plan Stripe
+          Price IDs can be managed from the Super Admin pricing catalog (database-backed), not only from a single legacy
+          env var.
+        </p>
+      </section>
+
+      <section id="product-features" class="section-panel">
+        <h2>11) Product features (what ships in-repo)</h2>
+        <div class="grid two">
+          <article class="card">
+            <h3>Signage core</h3>
+            <ul>
+              <li>Screen registry, grouping, online/offline heartbeats, pairing flows</li>
+              <li>Template editor (layers, widgets, live preview, push-to-screen)</li>
+              <li>Content library, upload validation, schedules (one-off and recurring)</li>
+              <li>Remote commands (reboot, refresh, screenshot, etc.) — API under <code>commands</code>, UI under <code>/commands</code></li>
+              <li>Bulk operations API for batch work across entities</li>
+            </ul>
+          </article>
+          <article class="card">
+            <h3>Platform &amp; operations</h3>
+            <ul>
+              <li>RBAC roles, 2FA (TOTP), invitations, session management, audit logs; SSO-oriented settings when enabled</li>
+              <li>Analytics dashboards (uptime, commands, template usage, trends) backed by <code>analytics</code></li>
+              <li>Tickets / helpdesk with queues, SLA, routing, attachments; optional operator bridge for external tooling</li>
+              <li>Notifications (email, SMS via Twilio) with encrypted channel settings; Celery-backed dispatch</li>
+              <li>Centralized error logging (<code>log</code> app) and super-admin log review</li>
+              <li>Backups, system email settings, license enforcement and registry APIs with offline grace</li>
+              <li>Public blog + platform blog tools; Data Center page for downloads (e.g. Android TV APK)</li>
+            </ul>
+          </article>
+        </div>
+        <figure class="screenshot">
+          <img src="./assets/screenshots/dashboard.png" alt="Dashboard screenshot" loading="lazy" onerror="this.closest('figure').style.display='none'" />
+          <figcaption>Example: main dashboard (image omitted if not bundled)</figcaption>
+        </figure>
+      </section>
+
+      <section id="operations" class="section-panel">
+        <h2>12) Operations, logs &amp; updates</h2>
+        <ul>
+          <li><strong>Application logs:</strong> Django, Gunicorn/Uvicorn, and Celery worker output (use <code>docker compose logs</code>).</li>
+          <li><strong>Edge logs:</strong> Nginx access and error logs inside the frontend container.</li>
+          <li><strong>Updates:</strong> Back up the database and media, pull new images or files, run migrations, rebuild the
+          SPA if front-end assets changed, then restart services. Always read <a href="./changelog.html">changelog.html</a>
+          for breaking changes.</li>
+        </ul>
+        <h3>Static assets / 500 errors after deploy</h3>
+        <p>If the UI loads but assets fail, rebuild the front end and ensure Nginx is serving the new <code>dist</code> output.
+        If API calls return 500, verify environment variables — especially database connectivity and <code>SECRET_KEY</code>.</p>
+      </section>
+
+      <section id="troubleshooting" class="section-panel">
+        <h2>13) Troubleshooting</h2>
+        <div class="notice warning">
+          <strong><code>net::ERR_NAME_NOT_RESOLVED</code> for <code>backend:8000</code>:</strong> The browser cannot resolve
+          Docker service names. The SPA must call same-origin <code>/api</code> (and <code>/iot</code> for device traffic)
+          so Vite (dev) or Nginx (prod) proxies to Django. Rebuild the front end after changing any <code>VITE_*</code>
+          variable and hard-refresh.
+        </div>
+        <ul>
+          <li><strong>WebSocket disconnects:</strong> confirm Redis is healthy, <code>/ws/</code> is proxied with upgrade headers, and firewalls allow long-lived connections.</li>
+          <li><strong>CSRF errors on login:</strong> add your exact origin (scheme + host + port) to <code>CSRF_TRUSTED_ORIGINS</code>.</li>
+          <li><strong>CORS:</strong> additional origins can be set via <code>CORS_ALLOWED_ORIGINS</code> in env (merged with defaults in settings).</li>
+        </ul>
+      </section>
+
+      <section id="testing" class="section-panel">
+        <h2>14) Running tests</h2>
+        <pre><code># Backend (pytest inside backend container)
+docker compose exec backend pytest --cov
+
+# Frontend unit tests
+cd frontend &amp;&amp; npm run test
+
+# Frontend e2e
+cd frontend &amp;&amp; npx playwright test</code></pre>
+      </section>
+
+      <section id="faq" class="section-panel">
+        <h2>15) FAQ</h2>
+        <article class="card">
+          <h3>Is SQLite supported?</h3>
+          <p>Yes for local experimentation via <code>USE_SQLITE=True</code>. Production should use PostgreSQL.</p>
+        </article>
+        <article class="card">
+          <h3>Where is the OpenAPI schema?</h3>
+          <p>JSON/YAML at <code>/api/schema/</code>; interactive docs at <code>/api/docs/</code> once authenticated.</p>
+        </article>
+        <article class="card">
+          <h3>Are front-end route guards a security boundary?</h3>
+          <p>No. Authorization is enforced in Django and DRF. Hiding a menu item in Vue is UX only.</p>
+        </article>
+      </section>
+
+      <section id="support" class="section-panel">
+        <h2>16) Support &amp; changelog</h2>
+        <p>
+          Use the support channel provided with your license or marketplace purchase (for example, item comments on
+          CodeCanyon). Custom development, third-party integrations, and managed hosting are outside standard item support
+          unless separately agreed.
+        </p>
+        <p><a href="./changelog.html">Open changelog.html</a> for version history.</p>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

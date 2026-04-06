@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "baseUrl": "frontend",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "target": "ESNext",
+    "allowJs": true,
+    "checkJs": false,
+    "jsx": "preserve",
+    "strict": false,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": false
+  },
+  "include": ["frontend/src/**/*.vue", "frontend/src/**/*.js", "frontend/src/**/*.ts"],
+  "exclude": ["frontend/node_modules", "frontend/dist", "**/node_modules/**"]
+}
