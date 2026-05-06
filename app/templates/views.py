@@ -1468,9 +1468,7 @@ class ContentViewSet(viewsets.ModelViewSet):
                 {'error': 'Error checking permissions. Content may have invalid relationships. Please contact support.'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-        except PermissionDenied:
-            raise
-        
+
         # Check if file is provided
         if 'file' not in request.FILES:
             logger.error(f"Upload failed: No 'file' field in request.FILES. Available keys: {list(request.FILES.keys())}")
@@ -1490,9 +1488,9 @@ class ContentViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         file_obj = request.FILES['file']
-        
+
         logger.info(f"File received: {file_obj.name}, Size: {file_obj.size} bytes, Type: {file_obj.content_type}")
         
         try:
