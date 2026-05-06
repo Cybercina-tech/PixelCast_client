@@ -204,8 +204,6 @@ def db_check(request):
                 except Exception:
                     pass
             raise  # Re-raise to be caught by outer handler
-        except Exception:
-            raise  # Re-raise to be caught by outer handler
 
     except OperationalError as e:
         logger.error(f"Database connection failed: {str(e)}", exc_info=True)
@@ -229,7 +227,6 @@ def db_check(request):
 @permission_classes([AllowAny])
 def run_migrations(request):
     """
-    Run database migrations programmatically.
     
     Security: Only accessible if installation is not completed.
     """
