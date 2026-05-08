@@ -368,10 +368,7 @@ const routes = [
     component: Settings,
     meta: { requiresAuth: true },
   },
-  {
-    path: '/settings/license',
-    redirect: { path: '/settings', query: { tab: 'license' } },
-  },
+
   {
     path: '/profile',
     name: 'profile',

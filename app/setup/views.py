@@ -201,6 +201,8 @@ def db_check(request):
                         return Response(serializer.data, status=status.HTTP_200_OK)
                     finally:
                         conn.close()
+                except Exception as ex:
+                    raise OperationalError(str(ex))
 
     except OperationalError as e:
         logger.error(f"Database connection failed: {str(e)}", exc_info=True)

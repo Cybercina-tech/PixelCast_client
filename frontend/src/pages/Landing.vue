@@ -376,7 +376,16 @@
                 See uptime, last sync, and what is playing—live from your control room, for every screen in your fleet.
               </p>
             </div>
-            <div class="grid md:grid-cols-3 gap-4 lg:gap-6">
+            <div v-if="screensLoading" class="flex justify-center items-center py-12">
+              <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-cyan-400"></div>
+            </div>
+            <div v-else-if="liveScreens.length === 0" class="flex flex-col items-center justify-center py-12 glass-card rounded-xl text-center">
+              <svg class="w-12 h-12 text-white/30 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              <p class="text-white/80 text-lg sm:text-xl font-medium">You don't have any screens yet. Please add some.</p>
+            </div>
+            <div v-else class="grid md:grid-cols-3 gap-4 lg:gap-6">
               <div 
                 v-for="(screen, index) in liveScreens" 
                 :key="index"
@@ -394,7 +403,7 @@
                   </div>
                 </div>
                 <div class="space-y-2 lg:space-y-3">
-                  <div class="flex justify-between text-xs lg:text-sm">
+                  <div class="flex justify-between text-xs lg:text-sm" v-if="screen.uptime !== 'N/A'">
                     <span class="text-white/60">Uptime</span>
                     <span class="text-white font-semibold">{{ screen.uptime }}</span>
                   </div>
@@ -585,7 +594,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { setupAPI } from '@/services/api'
+import { setupAPI, screensAPI } from '@/services/api'
 import { pushCtaClick } from '@/analytics/dataLayer'
 
 function trackLandingCta(ctaId, label) {
@@ -610,29 +619,45 @@ const toggleSectionMenu = () => {
   sectionMenuOpen.value = !sectionMenuOpen.value
 }
 
-const liveScreens = ref([
-  {
-    name: 'London Office',
-    status: 'Online',
-    uptime: '99.9%',
-    lastSync: '2s ago',
-    content: '3 Active'
-  },
-  {
-    name: 'Dubai Mall',
-    status: 'Online',
-    uptime: '99.8%',
-    lastSync: '5s ago',
-    content: '12 Active'
-  },
-  {
-    name: 'Tokyo Lab',
-    status: 'Offline',
-    uptime: '98.2%',
-    lastSync: '2m ago',
-    content: '0 Active'
+const liveScreens = ref([])
+const screensLoading = ref(true)
+
+const fetchScreens = async () => {
+  try {
+    screensLoading.value = true
+    const response = await screensAPI.list({ limit: 6 })
+    let screens = []
+    if (response.data?.results && Array.isArray(response.data.results)) {
+      screens = response.data.results
+    } else if (Array.isArray(response.data)) {
+      screens = response.data
+    } else if (response.data?.data && Array.isArray(response.data.data)) {
+      screens = response.data.data
+    }
+    
+    liveScreens.value = screens.slice(0, 6).map(screen => {
+      let lastSyncStr = 'N/A'
+      if (screen.last_ping) {
+        lastSyncStr = new Date(screen.last_ping).toLocaleTimeString()
+      } else if (screen.last_heartbeat) {
+        lastSyncStr = new Date(screen.last_heartbeat).toLocaleTimeString()
+      }
+
+      return {
+        name: screen.name || 'Unnamed Screen',
+        status: screen.is_online ? 'Online' : 'Offline',
+        uptime: 'N/A',
+        lastSync: lastSyncStr,
+        content: screen.current_template_name || screen.current_content_name || 'No Active Content'
+      }
+    })
+  } catch (err) {
+    console.error("Failed to fetch screens for Live Pulse:", err)
+    liveScreens.value = []
+  } finally {
+    screensLoading.value = false
   }
-])
+}
 
 const features = ref([
   {
@@ -795,10 +820,16 @@ onMounted(() => {
   setupAPI.status()
     .then((response) => {
       isInstalled.value = Boolean(response?.data?.installed)
+      if (isInstalled.value) {
+        fetchScreens()
+      } else {
+        screensLoading.value = false
+      }
     })
     .catch(() => {
       // Default to installed mode on network/API issues.
       isInstalled.value = true
+      fetchScreens()
     })
 
 })

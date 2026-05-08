@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>PixelCast — Product documentation</title>
-  <meta name="description" content="PixelCast digital signage: architecture, Docker deployment, environment variables, APIs, SaaS mode, WebSockets, troubleshooting, and operations." />
+  <title>PixelCast Client — Product documentation</title>
+  <meta name="description" content="PixelCast Client digital signage: architecture, Docker deployment, environment variables, APIs, WebSockets, troubleshooting, and operations." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -38,7 +38,7 @@
             <li><a href="#env-configuration">Configuration (.env)</a></li>
             <li><a href="#urls-and-api">URLs, API &amp; OpenAPI</a></li>
             <li><a href="#realtime">WebSockets &amp; IoT paths</a></li>
-            <li><a href="#saas-setup">SaaS &amp; deployment modes</a></li>
+            <li><a href="#deployment-mode">Deployment mode</a></li>
             <li><a href="#product-features">Product features</a></li>
             <li><a href="#operations">Operations, logs &amp; updates</a></li>
             <li><a href="#troubleshooting">Troubleshooting</a></li>
@@ -58,7 +58,7 @@
           <li><a href="#env-configuration">Configuration (.env)</a></li>
           <li><a href="#urls-and-api">URLs, API &amp; OpenAPI</a></li>
           <li><a href="#realtime">WebSockets &amp; IoT paths</a></li>
-          <li><a href="#saas-setup">SaaS &amp; deployment modes</a></li>
+          <li><a href="#deployment-mode">Deployment mode</a></li>
           <li><a href="#product-features">Product features</a></li>
           <li><a href="#operations">Operations, logs &amp; updates</a></li>
           <li><a href="#troubleshooting">Troubleshooting</a></li>
@@ -72,9 +72,9 @@
     <main class="content">
       <header class="hero">
         <p class="badge">Product documentation</p>
-        <h1>PixelCast — complete technical guide</h1>
+        <h1>PixelCast Client — complete technical guide</h1>
         <p>
-          PixelCast is a self-hosted or SaaS digital signage system: Django REST back end, real-time channels, a Vue 3
+          PixelCast Client is a stand-alone digital signage system: Django REST back end, real-time channels, a Vue 3
           admin SPA, and a browser-based web player. This page describes how the repository is structured, how to run and
           configure it, and where to find APIs and operational tools.
         </p>
@@ -174,19 +174,17 @@ frontend/public/documentation/      # shipped with the SPA build</code></pre>
 │   ├── accounts/                # users, JWT, 2FA/TOTP, SSO hooks, invitations, RBAC
 │   ├── analytics/               # dashboard metrics APIs
 │   ├── api_docs/                # protected Swagger / ReDoc / OpenAPI views
-│   ├── blog/                    # public blog API + platform admin content API
 │   ├── bulk_operations/         # batch action endpoints
 │   ├── commands/                # remote device commands API
 │   ├── content_validation/      # upload validation helpers API
 │   ├── core/                    # audit, backups, rate limits, system email, deployment helpers
-│   ├── licensing/               # license enforcement, operator gateway, registry APIs
 │   ├── log/                     # centralized error logging API + middleware
+│   ├── mother_client/           # communication with the mother server
 │   ├── notifications/         # email/SMS (Twilio) channels, Celery tasks
-│   ├── saas_platform/           # tenants, Stripe, super-admin reporting
 │   ├── setup/                   # installation wizard API
 │   ├── signage/                 # screens, IoT, pairing, heartbeat (also mounted at /iot/)
 │   ├── templates/               # template authoring, media, QR redirect routes
-│   ├── tickets/                 # helpdesk (queues, SLA, operator bridge, platform APIs)
+│   ├── tickets/                 # helpdesk (routed to the mother server)
 │   ├── tests/                   # pytest suite (shared under app/tests)
 │   ├── Dockerfile
 │   ├── entrypoint.sh
@@ -297,20 +295,8 @@ CELERY_BROKER_URL=redis://redis:6379/0
 CELERY_RESULT_BACKEND=redis://redis:6379/0
 USE_REDIS_CACHE=True
 
-# Deployment mode: saas | self_hosted | hybrid
-DEPLOYMENT_MODE=hybrid
-PLATFORM_SAAS_ENABLED=True
-
-# Stripe (SaaS billing — optional per deployment)
-STRIPE_SECRET_KEY=
-STRIPE_PUBLISHABLE_KEY=
-STRIPE_WEBHOOK_SECRET=
-
-# License / marketplace (see .env.example for full registry + grace tuning)
-LICENSE_ENFORCEMENT_ENABLED=True
-LICENSE_GATEWAY_BASE_URL=     # self-hosted installs (operator ↔ license service)
-LICENSE_SERVER_URL=           # SaaS / gateway URL when applicable
-CODECANYON_TOKEN=
+# Deployment mode
+DEPLOYMENT_MODE=client
 
 # Optional integrations
 OPENWEATHER_API_KEY=          # weather widget in templates
@@ -346,12 +332,6 @@ SSO_ENABLED=False             # SSO-ready account flows when True</code></pre>
 /api/public/downloads/     # Android TV APK URL JSON
 /api/public/deployment/    # deployment metadata
 /api/public/pricing/       # public pricing snapshot
-/api/public/blog/          # public blog feed/content
-/api/license/              # license activation &amp; enforcement API
-/api/license-registry/v1/  # license registry (telemetry / admin integrations)
-/api/platform/blog/        # platform blog admin API
-/api/platform/tickets/     # platform ticket admin API
-/api/platform/             # SaaS super-admin (tenants, Stripe, reporting…)
 /api/auth/…                # JWT, sessions, invitations (accounts.urls)
 /api/…                     # signage, templates, commands, bulk_operations,
                            # content_validation, analytics (see each app’s urls)
@@ -381,18 +361,14 @@ SSO_ENABLED=False             # SSO-ready account flows when True</code></pre>
         </ul>
       </section>
 
-      <section id="saas-setup" class="section-panel">
-        <h2>10) SaaS &amp; deployment modes</h2>
-        <ul>
-          <li><code>DEPLOYMENT_MODE=self_hosted</code> — single-tenant style; platform SaaS features follow settings.</li>
-          <li><code>DEPLOYMENT_MODE=saas</code> — multi-tenant operation with super-admin tooling.</li>
-          <li><code>DEPLOYMENT_MODE=hybrid</code> — common middle ground; <code>PLATFORM_SAAS_ENABLED</code> gates Stripe, tenant admin, and related APIs.</li>
-        </ul>
+      <section id="deployment-mode" class="section-panel">
+        <h2>10) Deployment mode</h2>
         <p>
-          Stripe Checkout, customer portal, and webhooks are integrated under <code>saas_platform</code>. Per-plan Stripe
-          Price IDs can be managed from the Super Admin pricing catalog (database-backed), not only from a single legacy
-          env var.
+          This is the PixelCast Client version.
         </p>
+        <ul>
+          <li><code>DEPLOYMENT_MODE=client</code> — stand-alone client operation. Operations such as ticketing are routed to the central "mother" server.</li>
+        </ul>
       </section>
 
       <section id="product-features" class="section-panel">
@@ -413,11 +389,11 @@ SSO_ENABLED=False             # SSO-ready account flows when True</code></pre>
             <ul>
               <li>RBAC roles, 2FA (TOTP), invitations, session management, audit logs; SSO-oriented settings when enabled</li>
               <li>Analytics dashboards (uptime, commands, template usage, trends) backed by <code>analytics</code></li>
-              <li>Tickets / helpdesk with queues, SLA, routing, attachments; optional operator bridge for external tooling</li>
+              <li>Tickets / helpdesk routed directly to the mother server</li>
               <li>Notifications (email, SMS via Twilio) with encrypted channel settings; Celery-backed dispatch</li>
-              <li>Centralized error logging (<code>log</code> app) and super-admin log review</li>
-              <li>Backups, system email settings, license enforcement and registry APIs with offline grace</li>
-              <li>Public blog + platform blog tools; Data Center page for downloads (e.g. Android TV APK)</li>
+              <li>Centralized error logging (<code>log</code> app)</li>
+              <li>Backups and system email settings</li>
+              <li>Data Center page for downloads (e.g. Android TV APK)</li>
             </ul>
           </article>
         </div>

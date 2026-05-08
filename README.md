@@ -1,6 +1,6 @@
-# PixelCast — Digital Signage Platform
+# PixelCast Client — Digital Signage Platform
 
-PixelCast is a self-hosted (or SaaS) digital signage system for managing screens, templates, schedules, and media content across distributed displays. It combines a Django REST back-end with real-time WebSocket communication, a Vue 3 single-page front-end, and an in-browser web player that renders content on any screen with a modern browser.
+PixelCast Client is a stand-alone digital signage system for managing screens, templates, schedules, and media content across distributed displays. It combines a Django REST back-end with real-time WebSocket communication, a Vue 3 single-page front-end, and an in-browser web player that renders content on any screen with a modern browser.
 
 ---
 
@@ -27,47 +27,58 @@ PixelCast is a self-hosted (or SaaS) digital signage system for managing screens
 ## Repository layout
 
 ```
-PixelCast/
-├── app/                          # Django project root
-│   ├── Screengram/               #   Project settings, ASGI/WSGI, root URL conf
-│   ├── accounts/                 #   Users, JWT auth, 2FA/TOTP, SSO, invitations, RBAC
+PixelCast_client/
+├── app/                          # Django project root (also reachable via BackEnd/ symlink)
+│   ├── Screengram/               #   Project package: settings, ASGI/WSGI, Channels routing, Celery, root URL conf
+│   ├── accounts/                 #   Users, JWT auth, 2FA/TOTP, SSO, invitations, RBAC, sidebar config
 │   ├── analytics/                #   Aggregated metrics APIs
 │   ├── api_docs/                 #   Swagger / OpenAPI (drf-spectacular)
 │   ├── bulk_operations/          #   Batch actions API
-│   ├── commands/                 #   Remote device commands
+│   ├── commands/                 #   Remote device commands + realtime broadcast
 │   ├── content_validation/       #   Upload validation utilities
-│   ├── core/                     #   Rate limiting, audit logs, backups, system email, middleware
-│   ├── licensing/                #   License enforcement middleware
+│   ├── core/                     #   Rate limiting, audit logs, backups, system email, deployment helpers, public views, middleware
+│   ├── licensing/                #   Self-hosted license enforcement, JWT license tokens, Envato verification, license registry (super-admin)
 │   ├── log/                      #   Centralized error logging
-│   ├── notifications/            #   Multi-channel notifications (email, SMS via Twilio), Celery tasks
-│   ├── saas_platform/            #   Multi-tenant management, Stripe billing, impersonation
-│   ├── setup/                    #   Installation wizard
-│   ├── signage/                  #   Screens, IoT endpoints, device pairing / heartbeat
-│   ├── templates/                #   Template authoring, QR actions, media
-│   ├── tickets/                  #   Helpdesk: queues, SLA, routing, threads, attachments
+│   ├── mother_client/            #   Communication with the mother server (register, heartbeat, usage)
+│   ├── notifications/            #   Multi-channel notifications (email, SMS via Twilio), encrypted channel config, Celery tasks
+│   ├── saas_platform/            #   Platform/SaaS admin (tenants, plan policy, Stripe webhooks) — only mounted when not in client mode
+│   ├── setup/                    #   First-run installation wizard + middleware
+│   ├── signage/                  #   Screens, IoT endpoints, device pairing / heartbeat, weather service
+│   ├── templates/                #   Template authoring, QR actions, recurrence, media
+│   ├── tickets/                  #   Helpdesk: locally raised, routed to the mother server (gateway or registry ingest)
 │   ├── tests/                    #   Centralised test suite (pytest)
 │   ├── Dockerfile
 │   ├── entrypoint.sh
 │   └── requirements.txt
 ├── frontend/                     # Vue 3 SPA
 │   ├── src/
-│   │   ├── pages/                #   Route-level views (dashboard, screens, templates, player …)
-│   │   ├── components/           #   Reusable UI (analytics charts, player widgets, layout …)
-│   │   ├── stores/               #   Pinia state stores
-│   │   ├── composables/          #   Vue composables (WebSocket, responsive scaling …)
-│   │   ├── services/             #   Axios API layer
-│   │   ├── router/               #   Vue Router config
+│   │   ├── pages/                #   Route-level views (dashboard, screens, templates, contents, schedules, commands, users, tickets, analytics, logs, super-admin, player, errors, …)
+│   │   ├── components/           #   Reusable UI (admin, analytics, common, core, layout, onboarding, player widgets, screens, templates)
+│   │   ├── stores/               #   Pinia state stores (auth, screens, templates, schedules, commands, content, analytics, notifications, sidebar, theme, …)
+│   │   ├── composables/          #   Vue composables (WebSocket, pairing QR scan, responsive scaling, system info, route head, …)
+│   │   ├── services/             #   Axios API layer (api, playerApi, clientLogger)
+│   │   ├── router/               #   Vue Router config + role/deployment-aware guard
 │   │   ├── layouts/              #   Shell layouts (admin, super-admin)
-│   │   └── config/               #   Navigation, feature flags
+│   │   ├── analytics/            #   Frontend analytics / dataLayer helpers
+│   │   ├── config/               #   Navigation, feature flags
+│   │   ├── constants/            #   Shared constants
+│   │   ├── data/                 #   Static data assets
+│   │   ├── plugins/              #   Vue plugins
+│   │   ├── seo/                  #   SEO / head helpers
+│   │   ├── styles/ + style.css   #   Tailwind / global styles
+│   │   └── utils/                #   Permissions, helpers
 │   ├── Dockerfile                #   Multi-stage: Node build → Nginx
 │   ├── Dockerfile.dev            #   Vite dev server
 │   ├── nginx.conf                #   SPA routing + API / WebSocket proxy
 │   └── package.json
+├── documentation/                # Static HTML product documentation served at /documentation/
 ├── docker-compose.yml            # Local development (Vite + Django hot-reload)
 ├── docker-compose.prod.yml       # Production (Nginx + Gunicorn/Uvicorn)
 ├── .env.example                  # Environment template — copy to .env
-├── install.sh                    # Docker-based installer
+├── install.sh                    # Docker-based installer (`docker compose up --build`)
+├── setup.sh                      # Helper script for local bootstrap
 ├── requirements.txt              # Python dependencies (mirrors app/requirements.txt)
+├── BackEnd                       # Symlink → app/ (kept for compatibility with the monorepo)
 └── README.md
 ```
 
@@ -77,57 +88,68 @@ PixelCast/
 
 ### Screen & device management
 - Register, group, and monitor screens
-- IoT endpoints for device pairing, heartbeat, and status
-- Push templates to connected screens in real time via WebSocket
+- IoT endpoints for device pairing, heartbeat, and status (`/iot/`, plus `/public-iot/` for backward compatibility)
+- Push templates to connected screens in real time via WebSocket (Django Channels)
+- In-browser **Web Player** with QR pairing (`/player/connect`, `/player/:screenId`) — no native app required
 
 ### Template editor
-- Drag-and-drop template builder with layers and widgets
+- Drag-and-drop template builder with layers and widgets (vue3-moveable)
 - Built-in widgets: clock, weather, chart, video, QR code, text, image, and more
 - Live preview and push-to-screen
+- Public QR action redirects (`/qr/<slug>/`) for interactive content
 
 ### Scheduling & commands
-- Recurring and one-off content schedules
-- Remote device commands (reboot, screenshot, refresh, etc.)
+- Recurring and one-off content schedules with `python-dateutil`
+- Remote device commands (reboot, screenshot, refresh, etc.) with realtime broadcast
 
 ### Analytics
 - Screen uptime, command success rates, template usage, content metrics
-- Activity trend charts with date-range filtering
+- Activity trend charts with date-range filtering (Chart.js)
+- GA-style virtual page-views from the SPA router
 
 ### User management & security
-- Role-based access control (admin, manager, operator, viewer, visitor)
-- JWT authentication with token blacklist
-- Two-factor authentication (TOTP)
+- Role-based access control (Visitor / Employee / Manager in client mode; Developer is reserved for super-admin maintenance)
+- JWT authentication with refresh-token blacklist and session revoke
+- Two-factor authentication (TOTP via `pyotp`)
 - SSO-ready architecture
-- User invitations
+- User invitations and password reset flows
 - Session management and audit logging
-- Rate limiting and brute-force protection
+- Rate limiting, CORS, and brute-force protection
 
-### SaaS platform (optional)
-- Multi-tenant management with super-admin UI
-- Stripe billing: checkout, customer portal, webhooks
-- Tenant impersonation, capacity dashboard, cohort analytics
-- Per-tenant API keys and webhook integrations
+### Licensing
+- Self-hosted license enforcement middleware (`licensing.middleware.LicenseEnforcementMiddleware`)
+- JWT license tokens, Envato purchase-code verification (one-time `PURCHASE_CODE`)
+- License registry endpoints (`/api/license-registry/v1/`) for the super-admin queue
+
+### Super-Admin (Developer-only) area
+- `/super-admin` shell, gated to the `Developer` role
+- Self-hosted license queue, ticket queue and ticket detail
+- Hidden in client deployments via the router guard (`isClientDeployment`)
 
 ### Helpdesk / tickets
-- Support ticket queues with SLA policies
-- Automatic routing rules, canned responses, tags
-- Threaded conversations with attachments
-- Separate requester and platform-admin APIs
+- Local ticket creation by end users
+- Automatic routing to the mother server (gateway `POST /api/gateway/ticket/` or license-registry ingest)
+- Threaded conversations and attachments
 
 ### Notifications
 - Email and SMS (Twilio) delivery
-- Encrypted channel configuration
-- Async dispatch via Celery
+- Encrypted channel configuration (Fernet, `NOTIFICATION_ENCRYPTION_KEY`)
+- Async dispatch via Celery (broker + result backend on Redis)
+
+### Mother-platform sync (optional)
+- Heartbeat and usage reporting from `mother_client` (Celery beat)
+- One-time registration with Envato purchase code, then encrypted credentials in DB
+- Toggleable via `MOTHER_SYNC_ENABLED` and `MOTHER_TICKET_VIA_GATEWAY`
 
 ### Additional
 - System email settings (SMTP configuration from admin UI)
-- Data Center page with Android TV APK download link
-- Content upload with validation
-- Backup management
-- License enforcement with offline grace period
-- Installation wizard for first-run setup
-- Static HTML product documentation at `/documentation/` (short link `/docs` redirects)
+- Data Center page with Android TV APK download link (`/api/public/downloads/`)
+- Content upload with MIME / size validation
+- Backup management UI (Developer-only)
+- First-run installation wizard (`/install`) and `installation_state/installed.lock`
+- Static HTML product documentation at `/documentation/` (short link `/docs` redirects, `/docs/changelog`)
 - OpenAPI / Swagger documentation at `/api/docs/`
+- Health probe at `/api/health/`, public deployment / config endpoints at `/api/public/deployment/` and `/api/config/`
 
 ---
 
@@ -226,14 +248,15 @@ See `.env.example` for the full list. Key sections:
 
 | Section | Variables |
 |---------|-----------|
-| Django | `SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS` |
-| Database | `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `USE_SQLITE` |
-| Redis / Celery | `REDIS_HOST`, `REDIS_PORT`, `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND` |
-| Deployment mode | `DEPLOYMENT_MODE` (`saas`, `self_hosted`, `hybrid`, `client` — Pixelcast client default) |
-| SaaS / Stripe | `PLATFORM_SAAS_ENABLED`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID` |
+| Django | `SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, `BASE_URL` |
+| Database | `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, `POSTGRES_*`, `USE_SQLITE` |
+| Redis / Celery | `REDIS_HOST`, `REDIS_PORT`, `USE_REDIS_CACHE`, `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND` |
+| Deployment mode | `DEPLOYMENT_MODE` (`client` by default — hides super-admin/platform routes) |
+| Mother platform (optional) | `PURCHASE_CODE` (one-time), `MOTHER_SYNC_ENABLED`, `MOTHER_TICKET_VIA_GATEWAY`, `MOTHER_HTTP_TIMEOUT_SECONDS` |
+| Notifications | `NOTIFICATION_ENCRYPTION_KEY` (Fernet, also reused for mother-API-key storage) |
 | Weather widget | `OPENWEATHER_API_KEY` |
-| License | `LICENSE_GATEWAY_BASE_URL` (self-hosted → operator), `LICENSE_SERVER_URL`, `LICENSE_ENFORCEMENT_ENABLED`, `CODECANYON_TOKEN` (SaaS gateway only) |
 | Email (fallback) | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD` |
+| Frontend / Vite | `VITE_API_BASE_URL` (default `/api`), `VITE_IOT_BASE_URL`, `VITE_PROXY_TARGET`, `VITE_BEHIND_HTTPS_PROXY`, `VITE_HMR_*` |
 | Ports | `BACKEND_PORT`, `FRONTEND_HOST_PORT`, `HTTP_PORT` |
 
 ---
@@ -267,8 +290,8 @@ cd frontend && npx playwright test
 
 ## Tech stack summary
 
-**Back-end:** Python 3.12 · Django 5.2 · DRF · Django Channels · Celery · Redis · PostgreSQL · drf-spectacular · SimpleJWT · pyotp · Stripe SDK · cryptography · boto3 / django-storages
+**Back-end:** Python 3.12 · Django 5.2 · DRF · Django Channels · Celery · Redis · PostgreSQL · drf-spectacular · SimpleJWT · pyotp · cryptography · boto3 / django-storages · twilio · python-dateutil · stripe (platform mode only)
 
-**Front-end:** Vue 3 · Vite · Pinia · Vue Router · Tailwind CSS · Chart.js · Axios · Vitest · Playwright · html2canvas · vue3-moveable · @vueuse/motion
+**Front-end:** Vue 3 · Vite 8 · Pinia · Vue Router · Tailwind CSS · Chart.js · Axios · Vitest · Playwright · html2canvas · vue3-moveable · @vueuse/motion · @unhead/vue · dompurify · marked · qrcode / jsqr · @heroicons/vue
 
 **Infrastructure:** Docker · Docker Compose · Nginx · Gunicorn + Uvicorn · Redis (cache + broker + channel layer)

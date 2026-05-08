@@ -220,7 +220,7 @@ CODECANYON_PRODUCT_ID = env('CODECANYON_PRODUCT_ID', default='')
 CODECANYON_BASIC_ITEM_IDS = env('CODECANYON_BASIC_ITEM_IDS', default='')
 CODECANYON_SAAS_ITEM_IDS = env('CODECANYON_SAAS_ITEM_IDS', default='')
 CODECANYON_DEFAULT_SELF_HOSTED_PLAN_TYPE = env('CODECANYON_DEFAULT_SELF_HOSTED_PLAN_TYPE', default='saas')
-LICENSE_ENFORCEMENT_ENABLED = env('LICENSE_ENFORCEMENT_ENABLED', default=True, cast=bool)
+LICENSE_ENFORCEMENT_ENABLED = env('LICENSE_ENFORCEMENT_ENABLED', default=False, cast=bool)
 LICENSE_OFFLINE_GRACE_HOURS = env('LICENSE_OFFLINE_GRACE_HOURS', default=72, cast=int)
 # When last_gateway_contact_at ages without successful validate/heartbeat sync (self-hosted + enforcement).
 LICENSE_STALE_CONTACT_ENFORCEMENT_ENABLED = env(
@@ -266,14 +266,14 @@ DEPLOYMENT_MODE = normalize_deployment_mode(env('DEPLOYMENT_MODE', default='hybr
 _PLATFORM_SAAS_ENV = env('PLATFORM_SAAS_ENABLED', default=True, cast=bool)
 PLATFORM_SAAS_ENABLED = resolve_effective_platform_saas(DEPLOYMENT_MODE, _PLATFORM_SAAS_ENV)
 # Self-hosted only: POST new tickets / customer replies to operator LICENSE_GATEWAY_BASE_URL …/tickets/ingest/
-TICKET_OPERATOR_BRIDGE_ENABLED = env('TICKET_OPERATOR_BRIDGE_ENABLED', default=False, cast=bool)
+TICKET_OPERATOR_BRIDGE_ENABLED = env('TICKET_OPERATOR_BRIDGE_ENABLED', default=True, cast=bool)
 
 # Mother platform gateway (Pixelcast ↔ operator SaaS)
 MOTHER_URL = 'https://pixelcast.cybercina.co.uk/'
 MOTHER_SYNC_ENABLED = env('MOTHER_SYNC_ENABLED', default=False, cast=bool)
 PURCHASE_CODE = env('PURCHASE_CODE', default='')
 MOTHER_HTTP_TIMEOUT_SECONDS = env('MOTHER_HTTP_TIMEOUT_SECONDS', default=10, cast=int)
-MOTHER_TICKET_VIA_GATEWAY = env('MOTHER_TICKET_VIA_GATEWAY', default=False, cast=bool)
+MOTHER_TICKET_VIA_GATEWAY = env('MOTHER_TICKET_VIA_GATEWAY', default=True, cast=bool)
 STRIPE_SECRET_KEY = env('STRIPE_SECRET_KEY', default='')
 STRIPE_PUBLISHABLE_KEY = env('STRIPE_PUBLISHABLE_KEY', default='')
 STRIPE_WEBHOOK_SECRET = env('STRIPE_WEBHOOK_SECRET', default='')
