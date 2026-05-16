@@ -683,15 +683,15 @@ def login_view(request):
             'lockout_seconds': remaining_time
         }, status=status.HTTP_429_TOO_MANY_REQUESTS)
     
-    # Check IP-based lockout as well
     client_ip = request.META.get('REMOTE_ADDR', 'unknown')
-    if AccountLockoutManager.is_locked(client_ip):
+    # Optional IP-based lockout (off by default — avoids locking everyone behind one NAT)
+    if getattr(settings, 'IP_LOGIN_LOCKOUT_ENABLED', False) and AccountLockoutManager.is_locked(client_ip):
         remaining_time = AccountLockoutManager.get_remaining_lockout_time(client_ip)
         return Response({
             'error': 'Too many failed login attempts from this IP. Please try again later.',
             'lockout_seconds': remaining_time
         }, status=status.HTTP_429_TOO_MANY_REQUESTS)  # Using 429 as Django doesn't have 423
-    
+
     # Attempt authentication
     serializer = LoginSerializer(data={'username': username, 'password': password})
     
@@ -753,7 +753,10 @@ def login_view(request):
     # Authentication failed - record attempt (prevent user enumeration)
     # Don't reveal whether username exists or password is wrong
     is_locked_username, _ = AccountLockoutManager.record_failed_attempt(username)
-    is_locked_ip, _ = AccountLockoutManager.record_failed_attempt(client_ip)
+    if getattr(settings, 'IP_LOGIN_LOCKOUT_ENABLED', False):
+        is_locked_ip, _ = AccountLockoutManager.record_failed_attempt(client_ip)
+    else:
+        is_locked_ip = False
     
     # Log failed login attempt
     try:

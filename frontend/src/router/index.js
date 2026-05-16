@@ -492,13 +492,25 @@ router.beforeEach(async (to, from, next) => {
           return
         }
       } catch (error) {
-        // Backend rejected token (401/403) or timeout - clear auth state
-        authStore.token = null
-        authStore.refreshToken = null
-        authStore.isAuthenticated = false
-        authStore.user = null
-        localStorage.removeItem('auth_token')
-        localStorage.removeItem('refresh_token')
+        const status = error?.response?.status
+        const isTimeout = error?.message === 'Timeout'
+
+        // Avoid forced logout on transient slowness/network issues.
+        if (isTimeout || !status) {
+          authStore.isAuthenticated = true
+          next()
+          return
+        }
+
+        // Explicit auth failure only.
+        if (status === 401 || status === 403) {
+          authStore.token = null
+          authStore.refreshToken = null
+          authStore.isAuthenticated = false
+          authStore.user = null
+          localStorage.removeItem('auth_token')
+          localStorage.removeItem('refresh_token')
+        }
       }
     }
     // No valid token or backend validation failed - redirect to login

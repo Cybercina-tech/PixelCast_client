@@ -5,6 +5,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.exceptions import PermissionDenied, ValidationError as DRFValidationError
 from django.utils import timezone
 from django.db.models import Q
+from django.db import IntegrityError
 from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponseNotModified
 from datetime import timedelta
@@ -809,33 +810,33 @@ def generate_pairing_session(request):
     Generate a new pairing session for TV/Web Player.
     Returns 6-digit code and pairing token for QR code.
     """
-    # Generate 6-digit code (ensure uniqueness)
+    # Generate and persist atomically with retries.
+    # PairingSession.pairing_code is globally unique, so we must handle DB collisions too.
     max_attempts = 10
+    session = None
+    from django.db import transaction
+
     for _ in range(max_attempts):
-        pairing_code = str(secrets.randbelow(900000) + 100000)  # 100000-999999
-        if not PairingSession.objects.filter(
-            pairing_code=pairing_code,
-            status='pending',
-            expires_at__gt=timezone.now()
-        ).exists():
+        pairing_code = str(secrets.randbelow(900000) + 100000)
+        pairing_token = secrets.token_urlsafe(32)
+        expires_at = timezone.now() + timedelta(minutes=5)
+        try:
+            with transaction.atomic():
+                session = PairingSession.objects.create(
+                    pairing_code=pairing_code,
+                    pairing_token=pairing_token,
+                    expires_at=expires_at,
+                    status='pending'
+                )
             break
-    else:
+        except IntegrityError:
+            continue
+
+    if session is None:
         return Response(
             {'error': 'Failed to generate unique pairing code. Please try again.'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-    
-    # Generate secure pairing token
-    pairing_token = secrets.token_urlsafe(32)
-    
-    # Create pairing session (expires in 5 minutes)
-    expires_at = timezone.now() + timedelta(minutes=5)
-    session = PairingSession.objects.create(
-        pairing_code=pairing_code,
-        pairing_token=pairing_token,
-        expires_at=expires_at,
-        status='pending'
-    )
     
     serializer = PairingSessionSerializer(session)
     return Response({
@@ -872,6 +873,7 @@ def get_pairing_status(request):
                 'status': 'paired',
                 'screen_id': str(session.screen.id),
                 'device_token': raw_device_token,
+                'activation_delivered': False,
                 'screen_name': session.screen.name,
                 'paired_at': session.paired_at,
             }, status=status.HTTP_200_OK)
@@ -880,6 +882,7 @@ def get_pairing_status(request):
         return Response({
             'status': 'paired',
             'screen_id': str(session.screen.id),
+            'activation_delivered': True,
             'screen_name': session.screen.name,
             'paired_at': session.paired_at,
             'message': 'Activation already delivered',

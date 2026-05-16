@@ -11,6 +11,8 @@ import {
 /** Avoid stacking identical "Too many requests" toasts when many API calls hit 429 at once */
 let lastGlobal429ToastAt = 0
 const GLOBAL_429_TOAST_COOLDOWN_MS = 5000
+let lastGlobal5xxToastAt = 0
+const GLOBAL_5XX_TOAST_COOLDOWN_MS = 5000
 
 // API base URL — Docker-only hostnames (backend:8000) are rewritten for the browser (see apiBaseUrl.js)
 const API_BASE_URL = normalizeApiBaseForBrowser(ensureBrowserReachableApiBase(getBrowserApiBaseUrl(), '/api'))
@@ -70,7 +72,7 @@ const processQueue = (error, token = null) => {
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const originalRequest = error.config
+    const originalRequest = error.config || {}
     const status = error.response?.status
     const errorData = error.response?.data || {}
 
@@ -104,7 +106,7 @@ api.interceptors.response.use(
     if (status === 503 && (errorData.error === 'installation_required' || errorData.status === 'not_installed')) {
       // Redirect to install page if not already there.
       // Do not surface a global toast for this expected pre-install state.
-      if (window.location.pathname !== '/install' && !originalRequest.url?.includes('/setup/')) {
+      if (window.location.pathname !== '/install' && !originalRequest?.url?.includes('/setup/')) {
         console.warn('Installation required - redirecting to /install')
         window.location.href = '/install'
       }
@@ -143,10 +145,10 @@ api.interceptors.response.use(
     
     // Don't try to refresh token for auth endpoints (login, signup, etc.)
     const isAuthEndpoint =
-      originalRequest.url?.includes('/auth/login/') ||
-      originalRequest.url?.includes('/auth/login/2fa/') ||
-      originalRequest.url?.includes('/auth/signup/') ||
-      originalRequest.url?.includes('/auth/token/')
+      originalRequest?.url?.includes('/auth/login/') ||
+      originalRequest?.url?.includes('/auth/login/2fa/') ||
+      originalRequest?.url?.includes('/auth/signup/') ||
+      originalRequest?.url?.includes('/auth/token/')
     
     // Handle 401 - try to refresh token (but not for auth endpoints)
     if (status === 401 && !originalRequest._retry && !isAuthEndpoint) {
@@ -156,6 +158,7 @@ api.interceptors.response.use(
           failedQueue.push({ resolve, reject })
         })
           .then(token => {
+            originalRequest.headers = originalRequest.headers || {}
             originalRequest.headers.Authorization = `Bearer ${token}`
             return api(originalRequest)
           })
@@ -196,6 +199,7 @@ api.interceptors.response.use(
           localStorage.setItem('refresh_token', response.data.refresh)
         }
         
+        originalRequest.headers = originalRequest.headers || {}
         originalRequest.headers.Authorization = `Bearer ${access}`
         isRefreshing = false
         processQueue(null, access)
@@ -247,7 +251,11 @@ api.interceptors.response.use(
         if (envelope.isValidation && hasFieldErrors) {
           // no global toast
         } else if (status >= 500) {
-          notify.error(userMessage, { title: 'Server Error', duration: 5000 })
+          const now = Date.now()
+          if (now - lastGlobal5xxToastAt >= GLOBAL_5XX_TOAST_COOLDOWN_MS) {
+            lastGlobal5xxToastAt = now
+            notify.error(userMessage, { title: 'Server Error', duration: 5000 })
+          }
         } else if (status === 403) {
           notify.error(userMessage, { title: 'Access Denied', duration: 4000 })
           // Optional: opt-in redirect for specific calls (default: no redirect; router guards handle page-level 403).

@@ -202,6 +202,12 @@ function handlePaired({ screenId, deviceToken }) {
     showPairing.value = true
     return
   }
+  if (!deviceToken) {
+    playerStore.status = 'error'
+    playerStore.errorMessage = 'Pairing completed without a device token. Please retry pairing.'
+    showPairing.value = true
+    return
+  }
   playerStore.saveDeviceIdentity(targetScreenId, deviceToken)
   showPairing.value = false
 

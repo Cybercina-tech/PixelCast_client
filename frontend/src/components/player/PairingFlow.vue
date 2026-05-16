@@ -322,12 +322,21 @@ function startStatusPolling() {
       
       if (response.data.status === 'paired') {
         clearPairingTimers()
-
+        const { screen_id, device_token, activation_delivered } = response.data
+        if (!screen_id || !device_token) {
+          status.value = 'error'
+          statusMessage.value = activation_delivered
+            ? 'This activation was already delivered. Generating a fresh code...'
+            : 'Pairing completed without activation token. Retrying...'
+          statusMessageType.value = 'error'
+          setTimeout(() => {
+            generatePairingSession()
+          }, 1500)
+          return
+        }
         status.value = 'success'
         statusMessage.value = 'Screen paired successfully!'
         statusMessageType.value = 'success'
-
-        const { screen_id, device_token } = response.data
 
         // Emit to parent (WebPlayer) after the welcome animation
         setTimeout(() => {

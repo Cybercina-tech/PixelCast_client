@@ -55,6 +55,17 @@ initClientLogger()
 
 const app = createApp(App)
 
+app.config.errorHandler = (err, instance, info) => {
+  console.error('[VueErrorHandler]', err, info, instance)
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('app-runtime-error', {
+      detail: {
+        message: err?.message || 'Unexpected application error',
+      },
+    }))
+  }
+}
+
 app.use(createHead())
 app.use(createPinia())
 app.use(router)

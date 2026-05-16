@@ -373,22 +373,56 @@
                 Live <span class="bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">Pulse</span>
               </h2>
               <p class="text-base sm:text-lg md:text-xl text-white/60 max-w-2xl mx-auto leading-relaxed">
-                See uptime, last sync, and what is playing—live from your control room, for every screen in your fleet.
+                See last sync, connection status, and what is playing—live from your control room, for every paired screen in your fleet.
               </p>
             </div>
             <div v-if="screensLoading" class="flex justify-center items-center py-12">
               <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-cyan-400"></div>
             </div>
-            <div v-else-if="liveScreens.length === 0" class="flex flex-col items-center justify-center py-12 glass-card rounded-xl text-center">
+            <div v-else-if="!isInstalled" class="flex flex-col items-center justify-center py-12 glass-card rounded-xl text-center px-4">
               <svg class="w-12 h-12 text-white/30 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
-              <p class="text-white/80 text-lg sm:text-xl font-medium">You don't have any screens yet. Please add some.</p>
+              <p class="text-white/80 text-lg sm:text-xl font-medium mb-4">Complete installation to see Live Pulse from your fleet.</p>
+              <router-link
+                to="/install"
+                class="neon-button px-5 py-2 rounded-lg text-sm font-semibold text-white transition-all duration-300"
+              >
+                Install
+              </router-link>
+            </div>
+            <div v-else-if="pulseFetchFailed" class="flex flex-col items-center justify-center py-12 glass-card rounded-xl text-center px-4">
+              <p class="text-white/80 text-lg sm:text-xl font-medium">Couldn&apos;t load screen status. Try again later.</p>
+            </div>
+            <div v-else-if="pulseGuest" class="flex flex-col items-center justify-center py-12 glass-card rounded-xl text-center px-4">
+              <svg class="w-12 h-12 text-white/30 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              <p class="text-white/80 text-lg sm:text-xl font-medium mb-4">Sign in to see live status for your paired screens.</p>
+              <router-link
+                v-if="isInstalled"
+                to="/login"
+                class="neon-button px-5 py-2 rounded-lg text-sm font-semibold text-white transition-all duration-300"
+              >
+                Sign In
+              </router-link>
+            </div>
+            <div v-else-if="liveScreens.length === 0" class="flex flex-col items-center justify-center py-12 glass-card rounded-xl text-center px-4">
+              <svg class="w-12 h-12 text-white/30 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              <p class="text-white/80 text-lg sm:text-xl font-medium mb-4">No paired screens yet. Pair a player from Add Screen.</p>
+              <router-link
+                to="/screens/add"
+                class="neon-button px-5 py-2 rounded-lg text-sm font-semibold text-white transition-all duration-300"
+              >
+                Add Screen
+              </router-link>
             </div>
             <div v-else class="grid md:grid-cols-3 gap-4 lg:gap-6">
               <div 
                 v-for="(screen, index) in liveScreens" 
-                :key="index"
+                :key="screen.id || index"
                 class="glass-card p-5 lg:p-6 rounded-xl section-fade-in"
                 :style="{ animationDelay: `${index * 0.15}s` }"
               >
@@ -403,10 +437,6 @@
                   </div>
                 </div>
                 <div class="space-y-2 lg:space-y-3">
-                  <div class="flex justify-between text-xs lg:text-sm" v-if="screen.uptime !== 'N/A'">
-                    <span class="text-white/60">Uptime</span>
-                    <span class="text-white font-semibold">{{ screen.uptime }}</span>
-                  </div>
                   <div class="flex justify-between text-xs lg:text-sm">
                     <span class="text-white/60">Last Sync</span>
                     <span class="text-white font-semibold">{{ screen.lastSync }}</span>
@@ -621,11 +651,35 @@ const toggleSectionMenu = () => {
 
 const liveScreens = ref([])
 const screensLoading = ref(true)
+const pulseGuest = ref(false)
+const pulseFetchFailed = ref(false)
+
+function formatRelativeLastSync(timestamp) {
+  if (!timestamp) return 'Never'
+  const lastSeen = new Date(timestamp)
+  const diffMs = Date.now() - lastSeen.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMins / 60)
+  const diffDays = Math.floor(diffHours / 24)
+  if (diffMins < 1) return 'Just now'
+  if (diffMins < 60) return `${diffMins}m ago`
+  if (diffHours < 24) return `${diffHours}h ago`
+  if (diffDays < 7) return `${diffDays}d ago`
+  return lastSeen.toLocaleDateString()
+}
 
 const fetchScreens = async () => {
+  pulseFetchFailed.value = false
+  if (typeof localStorage === 'undefined' || !localStorage.getItem('auth_token')) {
+    pulseGuest.value = true
+    liveScreens.value = []
+    screensLoading.value = false
+    return
+  }
+  pulseGuest.value = false
   try {
     screensLoading.value = true
-    const response = await screensAPI.list({ limit: 6 })
+    const response = await screensAPI.list({})
     let screens = []
     if (response.data?.results && Array.isArray(response.data.results)) {
       screens = response.data.results
@@ -634,25 +688,18 @@ const fetchScreens = async () => {
     } else if (response.data?.data && Array.isArray(response.data.data)) {
       screens = response.data.data
     }
-    
-    liveScreens.value = screens.slice(0, 6).map(screen => {
-      let lastSyncStr = 'N/A'
-      if (screen.last_ping) {
-        lastSyncStr = new Date(screen.last_ping).toLocaleTimeString()
-      } else if (screen.last_heartbeat) {
-        lastSyncStr = new Date(screen.last_heartbeat).toLocaleTimeString()
-      }
 
-      return {
-        name: screen.name || 'Unnamed Screen',
-        status: screen.is_online ? 'Online' : 'Offline',
-        uptime: 'N/A',
-        lastSync: lastSyncStr,
-        content: screen.current_template_name || screen.current_content_name || 'No Active Content'
-      }
-    })
+    const paired = screens.filter((s) => s.last_paired_at)
+    liveScreens.value = paired.slice(0, 6).map((screen) => ({
+      id: screen.id,
+      name: screen.name || 'Unnamed Screen',
+      status: screen.is_online ? 'Online' : 'Offline',
+      lastSync: formatRelativeLastSync(screen.last_heartbeat_at),
+      content: screen.active_template?.name || 'No active template',
+    }))
   } catch (err) {
-    console.error("Failed to fetch screens for Live Pulse:", err)
+    console.error('Failed to fetch screens for Live Pulse:', err)
+    pulseFetchFailed.value = true
     liveScreens.value = []
   } finally {
     screensLoading.value = false

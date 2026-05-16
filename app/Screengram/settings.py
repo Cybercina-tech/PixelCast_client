@@ -172,6 +172,8 @@ _cors_from_env = env('CORS_ALLOWED_ORIGINS', default='', cast=list)
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',  # Vite dev server
     'http://127.0.0.1:5173',
+    'http://localhost:5174',
+    'http://127.0.0.1:5174',
     'http://localhost:3000',
     'http://127.0.0.1:3000',
 ]
@@ -208,6 +210,8 @@ CORS_ALLOW_METHODS = [
 ACCOUNT_LOCKOUT_ENABLED = os.environ.get('ACCOUNT_LOCKOUT_ENABLED', 'True').lower() == 'true'
 MAX_LOGIN_ATTEMPTS = int(os.environ.get('MAX_LOGIN_ATTEMPTS', '5'))
 LOCKOUT_DURATION = int(os.environ.get('LOCKOUT_DURATION', '900'))  # 15 minutes
+# When True, failed logins also increment lockout by client IP (NAT/shared-office friendly when False).
+IP_LOGIN_LOCKOUT_ENABLED = os.environ.get('IP_LOGIN_LOCKOUT_ENABLED', 'False').lower() == 'true'
 
 # GET /api/core/deploy/status/ — requires header X-Deployment-Status-Secret when set; empty = disabled
 DEPLOYMENT_STATUS_SECRET = env('DEPLOYMENT_STATUS_SECRET', default='')

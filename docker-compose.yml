@@ -44,7 +44,10 @@ services:
     build:
       context: ./app
       dockerfile: Dockerfile
-    command: sh /app/entrypoint.sh
+    command:
+      - sh
+      - -c
+      - sed -i 's/\r$//' /app/entrypoint.sh && bash /app/entrypoint.sh
     env_file:
       - path: .env
         required: true
@@ -71,10 +74,13 @@ services:
       # SECURE_SSL_REDIRECT=True and responds 301 to HTTPS — POST /api/auth/login/ then fails.
       # Force off for this local Compose stack (TLS terminates on Traefik/nginx in prod, not here).
       - SECURE_SSL_REDIRECT=false
+      - PIXELCAST_SIGNAGE_INSTALLED=${PIXELCAST_SIGNAGE_INSTALLED:-true}
     volumes:
       - ./app:/app
       - backend_media:/app/media
       - backend_static:/app/staticfiles
+    ports:
+      - "${BACKEND_HOST_PORT:-8000}:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -88,15 +94,8 @@ services:
       dockerfile: Dockerfile.dev
     command:
       - sh
-      - /app/docker-entrypoint-dev.sh
-      - npm
-      - run
-      - dev
-      - --
-      - --host
-      - 0.0.0.0
-      - --port
-      - "5173"
+      - -c
+      - sed -i 's/\r$//' /app/docker-entrypoint-dev.sh && sh /app/docker-entrypoint-dev.sh npm run dev -- --host 0.0.0.0 --port 5173
     environment:
       - CHOKIDAR_USEPOLLING=true
       # Browser must use same-origin /api (never https://backend:8000 — not resolvable outside Docker network).
@@ -109,7 +108,8 @@ services:
       # For HTTPS-reverse-proxy dev, set VITE_BEHIND_HTTPS_PROXY=1. See .env.example.
       - VITE_BEHIND_HTTPS_PROXY=${VITE_BEHIND_HTTPS_PROXY:-0}
       - VITE_HMR_PROTOCOL=${VITE_HMR_PROTOCOL:-}
-      - VITE_HMR_CLIENT_PORT=${VITE_HMR_CLIENT_PORT:-}
+      # Published Docker host port (defaults below); must match browser URL for HMR WebSocket.
+      - VITE_HMR_CLIENT_PORT=${FRONTEND_HOST_PORT:-5174}
       - VITE_HMR_HOST=${VITE_HMR_HOST:-}
     volumes:
       - ./frontend:/app
@@ -120,7 +120,7 @@ services:
     # Host port → container 5173. Use FRONTEND_HOST_PORT (not FRONTEND_PORT) so platforms
     # that inject FRONTEND_PORT=80 for unrelated reasons do not steal host :80 from Traefik.
     ports:
-      - "${FRONTEND_HOST_PORT:-5173}:5173"
+      - "${FRONTEND_HOST_PORT:-5174}:5173"
     restart: always
 
 volumes:

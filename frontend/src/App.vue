@@ -5,6 +5,15 @@
       shellClass,
     ]"
   >
+    <div v-if="fatalError" class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 p-6 text-center text-white">
+      <div>
+        <h2 class="text-xl font-semibold">Something went wrong</h2>
+        <p class="mt-2 text-sm text-gray-200">{{ fatalError }}</p>
+        <button class="mt-4 rounded bg-cyan-600 px-4 py-2 text-sm font-medium hover:bg-cyan-500" @click="reloadApp">
+          Reload
+        </button>
+      </div>
+    </div>
     <RouterView />
     <NotificationContainer />
     <DeleteConfirmation />
@@ -12,7 +21,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeMount, onMounted, watch } from 'vue'
+import { computed, onBeforeMount, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import { useAuthStore } from './stores/auth'
 import { useThemeStore } from './stores/theme'
@@ -43,6 +52,15 @@ const authStore = useAuthStore()
 const themeStore = useThemeStore()
 const sidebarStore = useSidebarStore()
 const notificationStore = useNotificationStore()
+const fatalError = ref('')
+
+const handleRuntimeError = (event) => {
+  fatalError.value = event?.detail?.message || 'Unexpected application error'
+}
+
+const reloadApp = () => {
+  window.location.reload()
+}
 
 // Initialize notification store (ensure it's reactive)
 // This ensures the store is properly initialized when the app starts
@@ -53,6 +71,7 @@ onBeforeMount(() => {
 })
 
 onMounted(async () => {
+  window.addEventListener('app-runtime-error', handleRuntimeError)
   // Skip auth initialization on player route (player uses its own authentication)
   if (!isPlayerRoute.value) {
     // Initialize auth state on app startup (restore session if token exists)
@@ -63,6 +82,10 @@ onMounted(async () => {
       await sidebarStore.fetchSidebarItems()
     }
   }
+})
+
+onUnmounted(() => {
+  window.removeEventListener('app-runtime-error', handleRuntimeError)
 })
 
 // Watch for user changes and update sidebar (skip on player route)

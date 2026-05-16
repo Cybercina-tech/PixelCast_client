@@ -49,7 +49,8 @@ class ScreenSerializer(serializers.ModelSerializer):
     is_heartbeat_stale = serializers.SerializerMethodField()
     online_duration_seconds = serializers.SerializerMethodField()
     active_template = serializers.SerializerMethodField()
-    
+    has_active_device = serializers.SerializerMethodField()
+
     class Meta:
         model = Screen
         fields = [
@@ -58,11 +59,13 @@ class ScreenSerializer(serializers.ModelSerializer):
             'last_ip', 'app_version', 'os_version', 'device_model',
             'screen_width', 'screen_height', 'brightness', 'orientation',
             'is_busy', 'is_heartbeat_stale', 'online_duration_seconds',
+            'last_paired_at', 'has_active_device',
             'created_at', 'updated_at'
         ]
         read_only_fields = [
             'id', 'is_online', 'last_heartbeat_at', 'last_ip',
-            'is_busy', 'created_at', 'updated_at'
+            'is_busy', 'last_paired_at', 'has_active_device',
+            'created_at', 'updated_at'
         ]
     
     def get_is_heartbeat_stale(self, obj):
@@ -88,6 +91,10 @@ class ScreenSerializer(serializers.ModelSerializer):
                 'name': obj.active_template.name
             }
         return None
+
+    def get_has_active_device(self, obj):
+        """True when a device token is issued (player can authenticate)."""
+        return bool(obj.device_token_hash)
 
 
 class HeartbeatSerializer(serializers.Serializer):
@@ -605,15 +612,30 @@ class PairingBindSerializer(serializers.Serializer):
             pairing_code = None
         if pairing_token == '':
             pairing_token = None
+        if isinstance(pairing_code, str):
+            pairing_code = pairing_code.strip()
+        if isinstance(pairing_token, str):
+            pairing_token = pairing_token.strip()
         
         if not pairing_code and not pairing_token:
             raise serializers.ValidationError({
                 'non_field_errors': ['Either pairing_code or pairing_token must be provided']
             })
+
+        if pairing_code and (len(pairing_code) != 6 or not pairing_code.isdigit()):
+            raise serializers.ValidationError({
+                'pairing_code': ['Pairing code must be exactly 6 digits.']
+            })
         
         # Find pairing session
         try:
-            if pairing_code:
+            if pairing_code and pairing_token:
+                session = PairingSession.objects.get(
+                    pairing_code=pairing_code,
+                    pairing_token=pairing_token,
+                    status='pending'
+                )
+            elif pairing_code:
                 session = PairingSession.objects.get(
                     pairing_code=pairing_code,
                     status='pending'
@@ -641,6 +663,8 @@ class PairingBindSerializer(serializers.Serializer):
                 'non_field_errors': ['This pairing code/token has already been used']
             })
         
+        attrs['pairing_code'] = pairing_code
+        attrs['pairing_token'] = pairing_token
         attrs['session'] = session
         return attrs
 

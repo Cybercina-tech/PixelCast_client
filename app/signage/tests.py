@@ -8,6 +8,7 @@ from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
 from .models import Screen, PairingSession
+from .serializers import ScreenSerializer
 from templates.models import Template, Layer, Widget
 
 User = get_user_model()
@@ -123,6 +124,22 @@ class PairingFlowTests(TestCase):
         resp = self.client.post('/api/pairing/bind/', {'pairing_code': code})
         self.assertEqual(resp.status_code, 400)
 
+    def test_bind_rejects_non_numeric_code(self):
+        self.client.force_authenticate(user=self.user)
+        resp = self.client.post('/api/pairing/bind/', {'pairing_code': '12ab56'})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('pairing_code', resp.json().get('field_errors', {}))
+
+    def test_bind_rejects_mismatched_code_and_token(self):
+        first = self.client.post('/api/pairing/generate/').json()['pairing_session']
+        second = self.client.post('/api/pairing/generate/').json()['pairing_session']
+        self.client.force_authenticate(user=self.user)
+        resp = self.client.post('/api/pairing/bind/', {
+            'pairing_code': first['pairing_code'],
+            'pairing_token': second['pairing_token'],
+        })
+        self.assertEqual(resp.status_code, 400)
+
     # ── status (one-time activation) ────────────────────────────────
 
     def test_status_delivers_device_token_once(self):
@@ -147,6 +164,19 @@ class PairingFlowTests(TestCase):
         data2 = resp2.json()
         self.assertEqual(data2['status'], 'paired')
         self.assertNotIn('device_token', data2)
+        self.assertTrue(data2['activation_delivered'])
+
+    @patch('signage.views.secrets.randbelow', side_effect=[111111, 222222])
+    def test_generate_retries_when_pairing_code_collides(self, _mock_randbelow):
+        PairingSession.objects.create(
+            pairing_code='211111',
+            pairing_token='existing-token',
+            expires_at=timezone.now() + timedelta(minutes=5),
+            status='paired',
+        )
+        resp = self.client.post('/api/pairing/generate/')
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.json()['status'], 'success')
 
     def test_status_pending(self):
         gen = self.client.post('/api/pairing/generate/').json()
@@ -325,3 +355,29 @@ class RevokeRegenerateTests(TestCase):
         self.screen.refresh_from_db()
         self.assertTrue(self.screen.verify_device_token(new_token))
         self.assertFalse(self.screen.verify_device_token(self.raw_token))
+
+
+class ScreenSerializerPairingFieldsTests(TestCase):
+    """ScreenSerializer exposes pairing metadata without leaking secrets."""
+
+    def setUp(self):
+        self.user = _make_user()
+        self.screen = Screen.objects.create(
+            name='Serialize TV',
+            device_id='dev_serialize_001',
+            owner=self.user,
+        )
+
+    def test_has_active_device_false_without_token(self):
+        data = ScreenSerializer(self.screen).data
+        self.assertFalse(data['has_active_device'])
+        self.assertIsNone(data['last_paired_at'])
+        self.assertNotIn('device_token_hash', data)
+
+    def test_has_active_device_true_when_token_issued(self):
+        self.screen.issue_device_token()
+        self.screen.last_paired_at = timezone.now()
+        self.screen.save(update_fields=['last_paired_at'])
+        data = ScreenSerializer(self.screen).data
+        self.assertTrue(data['has_active_device'])
+        self.assertIsNotNone(data['last_paired_at'])

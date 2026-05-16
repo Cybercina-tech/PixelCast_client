@@ -66,6 +66,8 @@ const restrictionBannerText = computed(() => {
 })
 const screensStore = useScreensStore()
 const { connect, disconnect, on, off, isConnected } = useWebSocket()
+let screenStatusHandler = null
+let screenHeartbeatHandler = null
 
 // Set up WebSocket listener for screen status updates
 onMounted(() => {
@@ -74,28 +76,30 @@ onMounted(() => {
     connect(authStore.token)
     
     // Listen for screen status updates
-    on('screen_status_update', (data) => {
+    screenStatusHandler = (data) => {
       if (data && data.screen) {
         screensStore.handleScreenStatusUpdate(data.screen)
       }
-    })
+    }
+    on('screen_status_update', screenStatusHandler)
     
     // Listen for screen heartbeat updates
-    on('screen_heartbeat', (data) => {
+    screenHeartbeatHandler = (data) => {
       if (data && data.screen_id) {
         // Fetch updated status for this screen
         screensStore.fetchSingleScreenStatus(data.screen_id).catch(err => {
           console.warn('Failed to fetch screen status after heartbeat:', err)
         })
       }
-    })
+    }
+    on('screen_heartbeat', screenHeartbeatHandler)
   }
 })
 
 onUnmounted(() => {
   // Clean up WebSocket listeners
-  off('screen_status_update')
-  off('screen_heartbeat')
+  if (screenStatusHandler) off('screen_status_update', screenStatusHandler)
+  if (screenHeartbeatHandler) off('screen_heartbeat', screenHeartbeatHandler)
   disconnect()
 })
 </script>

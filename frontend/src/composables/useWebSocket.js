@@ -50,8 +50,12 @@ export function useWebSocket() {
   const reconnectTimer = ref(null)
   const pingTimer = ref(null)
   const eventHandlers = ref(new Map())
+  const shouldReconnect = ref(false)
+  const reconnectToken = ref(null)
 
   const connect = (token) => {
+    reconnectToken.value = token
+    shouldReconnect.value = true
     if (socket.value && socket.value.readyState === WebSocket.OPEN) {
       console.log('WebSocket already connected')
       return
@@ -96,7 +100,7 @@ export function useWebSocket() {
         emit('disconnected', { code: event.code, reason: event.reason })
         
         // Auto-reconnect if not intentional close
-        if (event.code !== 1000) {
+        if (shouldReconnect.value && event.code !== 1000 && event.code !== 1008) {
           scheduleReconnect(token)
         }
       }
@@ -107,6 +111,8 @@ export function useWebSocket() {
   }
 
   const disconnect = () => {
+    shouldReconnect.value = false
+    reconnectToken.value = null
     if (reconnectTimer.value) {
       clearTimeout(reconnectTimer.value)
       reconnectTimer.value = null
@@ -124,6 +130,9 @@ export function useWebSocket() {
   }
 
   const scheduleReconnect = (token) => {
+    if (!shouldReconnect.value) {
+      return
+    }
     if (reconnectTimer.value) {
       return // Already scheduled
     }
@@ -138,7 +147,7 @@ export function useWebSocket() {
 
     reconnectTimer.value = setTimeout(() => {
       reconnectTimer.value = null
-      connect(token)
+      connect(token || reconnectToken.value)
     }, delay)
   }
 
@@ -202,10 +211,17 @@ export function useWebSocket() {
 
   const off = (eventType, handler) => {
     if (eventHandlers.value.has(eventType)) {
+      if (!handler) {
+        eventHandlers.value.delete(eventType)
+        return
+      }
       const handlers = eventHandlers.value.get(eventType)
       const index = handlers.indexOf(handler)
       if (index > -1) {
         handlers.splice(index, 1)
+      }
+      if (handlers.length === 0) {
+        eventHandlers.value.delete(eventType)
       }
     }
   }
