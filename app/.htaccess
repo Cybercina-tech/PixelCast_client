@@ -1,0 +1,28 @@
+# Security hardening for accidental public_html extraction.
+# This file blocks direct web access to sensitive files and runtime artifacts.
+
+<IfModule mod_authz_core.c>
+  # Dotfiles and environment files
+  <FilesMatch "^(\.env|\.env\..*|.*\.env|.*\.ini|.*\.log|.*\.sqlite3?|.*\.db)$">
+    Require all denied
+  </FilesMatch>
+
+  # Python bytecode and private metadata
+  <FilesMatch "(\.pyc|\.pyo|\.dist-info|\.egg-info)$">
+    Require all denied
+  </FilesMatch>
+</IfModule>
+
+<IfModule !mod_authz_core.c>
+  <FilesMatch "^(\.env|\.env\..*|.*\.env|.*\.ini|.*\.log|.*\.sqlite3?|.*\.db)$">
+    Order allow,deny
+    Deny from all
+  </FilesMatch>
+  <FilesMatch "(\.pyc|\.pyo|\.dist-info|\.egg-info)$">
+    Order allow,deny
+    Deny from all
+  </FilesMatch>
+</IfModule>
+
+# Block common sensitive directories.
+RedirectMatch 403 (?i)^/(logs|log|tmp|backups|installation_state|media/private)(/|$)

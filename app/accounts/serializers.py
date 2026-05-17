@@ -3,6 +3,7 @@ from django.conf import settings
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth import authenticate, get_user_model
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 
 from core.deployment import is_client_deployment
 from rest_framework.exceptions import AuthenticationFailed
@@ -465,6 +466,8 @@ class ScreenGramTokenRefreshSerializer(TokenRefreshSerializer):
                     "no_active_account",
                 )
             refresh["role"] = user.role
+
+        refresh["last_seen_at"] = timezone.now().isoformat()
 
         data = {"access": str(refresh.access_token)}
 

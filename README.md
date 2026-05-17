@@ -242,6 +242,27 @@ Set `VITE_BEHIND_HTTPS_PROXY=1` and configure `CSRF_TRUSTED_ORIGINS` to your dom
 
 ---
 
+## cPanel deployment (shared hosting)
+
+This project includes a cPanel-oriented installation path:
+
+- Passenger entrypoint: `app/passenger_wsgi.py`
+- Installer wizard route: `/install` (auto-reached while not installed)
+- Passenger restart trigger: `app/tmp/restart.txt` touch
+- Security hardening for accidental `public_html` extraction: `app/.htaccess`
+
+See the full buyer guide in [`CPANEL_INSTALL.md`](CPANEL_INSTALL.md).
+
+For marketplace release packaging (prebuilt frontend + pre-collected static files):
+
+```bash
+./build-cpanel-release.sh
+```
+
+This produces `release/main.zip`.
+
+---
+
 ## Environment reference
 
 See `.env.example` for the full list. Key sections:

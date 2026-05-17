@@ -680,7 +680,10 @@ class ActivityAnalyticsService:
                 created_at__lte=end_date
             )
             if screen_ids is not None and scope_user is not None:
-                content_uploads = content_uploads.filter(created_by=scope_user)
+                # Content has no created_by; scope via widget → layer → template owner.
+                content_uploads = content_uploads.filter(
+                    widget__layer__template__created_by=scope_user
+                )
             content_uploads = content_uploads.annotate(
                 period=trunc_func
             ).values('period').annotate(

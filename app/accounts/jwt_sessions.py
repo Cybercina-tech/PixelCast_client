@@ -13,6 +13,8 @@ from django.utils import timezone
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from .user_agent import session_device_fields
+
 logger = logging.getLogger(__name__)
 
 User = get_user_model()
@@ -69,14 +71,20 @@ def list_refresh_sessions_for_user(user: User, current_access_token: str | None)
         payload = _decode_jwt_payload_unverified(ot.token)
         sid = payload.get('sid')
         jti = payload.get('jti')
+        client_ua = (payload.get('client_ua') or '').strip()
+        device_meta = session_device_fields(client_ua or None)
+        last_seen = payload.get('last_seen_at')
+        if not last_seen and ot.created_at:
+            last_seen = ot.created_at.isoformat()
         out.append(
             {
                 'id': str(ot.id),
                 'jti': jti,
                 'sid': sid,
-                'device': (payload.get('client_ua') or 'Unknown')[:200],
+                **device_meta,
                 'ip_address': (payload.get('client_ip') or '—')[:64],
-                'last_activity': ot.created_at.isoformat() if ot.created_at else None,
+                'last_activity': last_seen,
+                'created_at': ot.created_at.isoformat() if ot.created_at else None,
                 'expires_at': ot.expires_at.isoformat() if ot.expires_at else None,
                 'current': bool(current_sid and sid and current_sid == sid),
             }

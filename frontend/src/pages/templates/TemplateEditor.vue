@@ -232,7 +232,8 @@
 
                 <!-- Moveable Component -->
                 <Moveable
-                  v-if="selectedWidget"
+                  v-if="selectedWidget && selectedWidgetElement"
+                  :key="selectedWidgetId"
                   ref="moveableRef"
                   :target="selectedWidgetElement"
                   :draggable="true"
@@ -246,7 +247,7 @@
                   :snapVertical="true"
                   :snapHorizontal="true"
                   :snapCenter="true"
-                  :elementGuidelines="widgetElements"
+                  :elementGuidelines="safeElementGuidelines"
                   :bounds="canvasBounds"
                   :zoom="1 / scale"
                   :persistRect="true"
@@ -891,16 +892,37 @@ const generateId = () => {
 const setWidgetRef = (el, widgetId) => {
   if (el) {
     widgetRefs.value[widgetId] = el
+    return
   }
+  delete widgetRefs.value[widgetId]
 }
 
-// Get widget elements for snapping
+// Get widget elements for snapping (only live DOM nodes)
 const widgetElements = computed(() => {
   return widgets.value
     .filter(w => w.id !== selectedWidgetId.value)
     .map(w => widgetRefs.value[w.id])
-    .filter(Boolean)
+    .filter((el) => el && el.isConnected !== false)
 })
+
+const safeElementGuidelines = computed(() => {
+  if (!selectedWidgetElement.value || selectedWidgetElement.value.isConnected === false) {
+    return []
+  }
+  return widgetElements.value
+})
+
+/** Remount Moveable after widget DOM changes (e.g. media upload) to avoid vue3-moveable internal race. */
+const remountMoveable = async () => {
+  if (!selectedWidgetId.value) return
+  const widgetId = selectedWidgetId.value
+  selectedWidgetElement.value = null
+  await nextTick()
+  if (selectedWidgetId.value !== widgetId) return
+  updateSelectedWidgetElement()
+  await nextTick()
+  moveableRef.value?.updateRect?.()
+}
 
 // Canvas bounds for Moveable (in internal/canvas coordinates)
 // Using internal bounds instead of viewport bounds works better with zoom transform
@@ -1276,6 +1298,7 @@ const handleMediaSelect = async (data) => {
     }
     syncAlbumWidgetQueue(selectedWidget.value)
     notify.success('Media added to album queue')
+    await remountMoveable()
     return
   }
   
@@ -1311,6 +1334,8 @@ const handleMediaSelect = async (data) => {
       // Don't show error to user - content URL is already set, linking is optional
     }
   }
+
+  await remountMoveable()
 }
 
 // Handle preview image error
@@ -1480,10 +1505,13 @@ const updateWidgetProperty = (property, value) => {
     selectedWidget.value.style.imageVersion = Date.now()
   }
 
+  if (property === 'content') {
+    remountMoveable()
+    return
+  }
+
   nextTick(() => {
-    if (moveableRef.value) {
-      moveableRef.value.updateRect()
-    }
+    moveableRef.value?.updateRect?.()
   })
 }
 

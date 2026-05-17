@@ -262,38 +262,13 @@
                     No active sessions found
                   </div>
                   <div v-else class="space-y-3">
-                    <div
+                    <ActiveSessionRow
                       v-for="session in sessions"
                       :key="session.id"
-                      class="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl border border-border-color bg-surface-inset"
-                    >
-                      <div class="flex items-start gap-3 min-w-0">
-                        <component :is="sessionDeviceIcon(session.device)" class="w-5 h-5 text-muted shrink-0 mt-0.5" />
-                        <div>
-                          <p class="text-sm font-medium text-primary">{{ session.device || 'Unknown device' }}</p>
-                          <p class="text-xs text-muted">IP: {{ session.ip_address || '—' }}</p>
-                          <p class="text-xs text-muted mt-0.5">Last activity: {{ formatSessionDate(session.last_activity) }}</p>
-                        </div>
-                      </div>
-                      <div class="flex items-center gap-3 shrink-0">
-                        <span
-                          v-if="session.current"
-                          class="px-2 py-0.5 rounded text-xs font-medium bg-forest-green/15 text-forest-green border border-forest-green/30"
-                        >
-                          Current
-                        </span>
-                        <button
-                          v-if="!session.current"
-                          type="button"
-                          class="btn-outline px-3 py-1.5 rounded-lg text-sm text-error border-error/30 hover:bg-error/10 disabled:opacity-50"
-                          :disabled="terminatingSession === session.id"
-                          @click="revokeSession(session.id)"
-                        >
-                          <span v-if="terminatingSession === session.id">Revoking…</span>
-                          <span v-else>Revoke</span>
-                        </button>
-                      </div>
-                    </div>
+                      :session="session"
+                      :revoking="terminatingSession === session.id"
+                      @revoke="revokeSession"
+                    />
                     <div class="pt-2 border-t border-border-color">
                       <button
                         type="button"
@@ -421,6 +396,7 @@ import { getBrowserApiBaseUrl } from '@/utils/apiBaseUrl'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Card from '@/components/common/Card.vue'
 import NeonToggle from '@/components/common/NeonToggle.vue'
+import ActiveSessionRow from '@/components/security/ActiveSessionRow.vue'
 import {
   UserIcon,
   PaintBrushIcon,
@@ -430,8 +406,6 @@ import {
   KeyIcon,
   CameraIcon,
   CalendarIcon,
-  ComputerDesktopIcon,
-  DevicePhoneMobileIcon,
   MoonIcon,
   SunIcon,
 } from '@heroicons/vue/24/outline'
@@ -550,25 +524,6 @@ const sessionsError = ref(null)
 
 const terminatingSession = ref(null)
 const loggingOutAllSessions = ref(false)
-
-function sessionDeviceIcon(deviceLabel) {
-  const d = (deviceLabel || '').toLowerCase()
-  if (/iphone|ipad|ipod|android|mobile/.test(d)) {
-    return DevicePhoneMobileIcon
-  }
-  return ComputerDesktopIcon
-}
-
-function formatSessionDate(dateString) {
-  if (!dateString) return 'Never'
-  try {
-    return new Date(dateString).toLocaleString()
-  } catch {
-    return dateString
-  }
-}
-
-
 
 async function loadSessions() {
   loadingSessions.value = true

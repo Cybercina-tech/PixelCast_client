@@ -94,6 +94,11 @@ const routes = [
     meta: { public: true },
   },
   {
+    path: '/setup',
+    redirect: '/install',
+    meta: { public: true },
+  },
+  {
     path: '/login',
     name: 'login',
     component: Login,

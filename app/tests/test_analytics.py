@@ -319,6 +319,27 @@ class ActivityTrendsTests(AnalyticsAPITestCase):
         
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_activity_trends_employee_scoped_content_uploads(self):
+        """Employee analytics must not filter Content by nonexistent created_by."""
+        employee = self.create_user(
+            username='analytics_employee',
+            email='employee@test.com',
+            role='Employee',
+            organization_name='TestOrg',
+        )
+        self.screen1.owner = employee
+        self.screen1.save()
+        self.template1.created_by = employee
+        self.template1.save()
+
+        self.client.force_authenticate(user=employee)
+        url = reverse('analytics:activity-trends')
+        response = self.client.get(url, {'days': '7'})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['status'], 'success')
+        self.assertIn('content_uploads', response.data['data'])
+
 
 @pytest.mark.analytics
 @pytest.mark.security

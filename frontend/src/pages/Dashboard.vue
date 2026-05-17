@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <AppLayout>
     <!-- Background - Hidden in Light Mode for Eye-Care -->
     <div class="fixed inset-0 pointer-events-none overflow-hidden z-0 opacity-0 dark:opacity-100 transition-opacity duration-400">
@@ -188,24 +188,40 @@
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <!-- Screen Status Chart -->
             <div class="card-base rounded-2xl p-6">
-              <h3 class="text-lg font-semibold text-primary mb-6">Screen Status</h3>
-              <div class="flex items-center justify-center mb-6">
-                <div class="relative w-48 h-48">
-                  <!-- Donut Chart -->
+              <h3 class="text-lg font-semibold text-primary mb-4">Screen Status</h3>
+              <div class="flex flex-col sm:flex-row sm:items-center gap-6">
+                <div class="flex-1 space-y-2 order-2 sm:order-1 min-w-0">
+                  <div class="flex items-center justify-between text-sm gap-3">
+                    <div class="flex items-center gap-2 min-w-0">
+                      <div class="w-3 h-3 rounded-full shrink-0 bg-forest-green" />
+                      <span class="text-muted">Online Screens</span>
+                    </div>
+                    <span class="text-primary font-semibold tabular-nums shrink-0">{{ stats.onlineScreens }}</span>
+                  </div>
+                  <div class="flex items-center justify-between text-sm gap-3">
+                    <div class="flex items-center gap-2 min-w-0">
+                      <div class="w-3 h-3 rounded-full shrink-0 bg-dusty-red" />
+                      <span class="text-muted">Offline Screens</span>
+                    </div>
+                    <span class="text-primary font-semibold tabular-nums shrink-0">{{ stats.offlineScreens }}</span>
+                  </div>
+                </div>
+                <div class="relative w-44 h-44 sm:w-48 sm:h-48 shrink-0 mx-auto sm:mx-0 order-1 sm:order-2">
                   <Chart
                     v-if="chartData"
                     :data="chartData"
                     :options="chartOptions"
                     type="doughnut"
+                    container-class="w-full h-full min-h-0"
                   />
                   <!-- Fallback Circular Progress -->
-                  <div v-else class="relative w-48 h-48">
-                    <svg class="transform -rotate-90 w-48 h-48">
+                  <div v-else class="relative w-full h-full">
+                    <svg class="transform -rotate-90 w-full h-full" viewBox="0 0 192 192">
                       <circle
                         cx="96"
                         cy="96"
                         r="88"
-                        stroke="var(--border-color)"
+                        :stroke="chartUiTheme.track"
                         stroke-width="16"
                         fill="none"
                       />
@@ -215,7 +231,7 @@
                         r="88"
                         :stroke-dasharray="circumference"
                         :stroke-dashoffset="circumference - (onlinePercentage / 100) * circumference"
-                        stroke="var(--accent-color)"
+                        :stroke="chartUiTheme.online"
                         stroke-width="16"
                         fill="none"
                         stroke-linecap="round"
@@ -223,26 +239,10 @@
                       />
                     </svg>
                     <div class="absolute inset-0 flex flex-col items-center justify-center">
-                      <p class="text-4xl font-bold text-primary">{{ onlinePercentage }}%</p>
+                      <p class="text-3xl sm:text-4xl font-bold text-primary">{{ onlinePercentage }}%</p>
                       <p class="text-sm text-muted mt-1">Online</p>
                     </div>
                   </div>
-                </div>
-              </div>
-              <div class="space-y-2">
-                <div class="flex items-center justify-between text-sm">
-                  <div class="flex items-center gap-2">
-                    <div class="w-3 h-3 rounded-full bg-forest-green"></div>
-                    <span class="text-muted">Online Screens</span>
-                  </div>
-                  <span class="text-primary font-semibold">{{ stats.onlineScreens }}</span>
-                </div>
-                <div class="flex items-center justify-between text-sm">
-                  <div class="flex items-center gap-2">
-                    <div class="w-3 h-3 rounded-full bg-dusty-red"></div>
-                    <span class="text-muted">Offline Screens</span>
-                  </div>
-                  <span class="text-primary font-semibold">{{ stats.offlineScreens }}</span>
                 </div>
               </div>
             </div>
@@ -347,7 +347,7 @@
                 class="text-sm text-accent-color hover:opacity-80 transition-all duration-400"
                 style="color: var(--accent-color);"
               >
-                View All →
+                View All â†’
               </router-link>
             </div>
             <div v-if="recentTemplates.length === 0" class="text-center py-8 text-muted">
@@ -434,6 +434,12 @@ import { contentsAPI } from '@/services/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import OnboardingChecklist from '@/components/onboarding/OnboardingChecklist.vue'
 import Chart from '@/components/common/Chart.vue'
+import { useThemeStore } from '@/stores/theme'
+import {
+  buildDoughnutTooltipOptions,
+  colorWithAlpha,
+  getChartUiTheme,
+} from '@/utils/chartTheme'
 import {
   TvIcon,
   ServerIcon,
@@ -446,6 +452,7 @@ const dashboardStore = useDashboardStore()
 const templatesStore = useTemplatesStore()
 const screensStore = useScreensStore()
 const notify = useNotification()
+const themeStore = useThemeStore()
 
 // State
 const loading = ref(true)
@@ -496,45 +503,42 @@ const recentTemplates = computed(() => {
     .slice(0, 4)
 })
 
-// Chart Data
+const chartUiTheme = computed(() => {
+  void themeStore.theme
+  return getChartUiTheme()
+})
+
 const chartData = computed(() => {
   if (stats.value.totalScreens === 0) return null
-  
+
+  const theme = chartUiTheme.value
   return {
     labels: ['Online', 'Offline'],
     datasets: [{
       data: [stats.value.onlineScreens, stats.value.offlineScreens],
       backgroundColor: [
-        'rgba(22, 101, 52, 0.8)', // Forest Green
-        'rgba(185, 28, 28, 0.6)', // Dusty Red
+        colorWithAlpha(theme.online, 0.9),
+        colorWithAlpha(theme.offline, 0.85),
       ],
-      borderColor: [
-        'rgba(22, 101, 52, 1)',
-        'rgba(185, 28, 28, 0.8)',
-      ],
+      borderColor: [theme.online, theme.offline],
+      hoverBackgroundColor: [theme.online, theme.offline],
+      hoverBorderColor: [theme.online, theme.offline],
       borderWidth: 2,
     }],
   }
 })
 
-const chartOptions = {
+const chartOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
     legend: {
       display: false,
     },
-    tooltip: {
-      backgroundColor: 'var(--card-bg)',
-      titleColor: 'var(--text-heading)',
-      bodyColor: 'var(--text-body)',
-      borderColor: 'var(--border-color)',
-      borderWidth: 1,
-      backdropFilter: 'blur(12px)',
-    },
+    tooltip: buildDoughnutTooltipOptions(chartUiTheme.value),
   },
   cutout: '70%',
-}
+}))
 
 // Computed properties
 const onlinePercentage = computed(() => {

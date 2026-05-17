@@ -90,11 +90,11 @@
             </div>
           </div>
         </div>
-        <div class="xl:col-span-5 min-w-0">
-          <div class="card-base rounded-2xl p-6 h-full flex flex-col">
-            <h2 class="text-lg font-semibold text-primary mb-4">Remote Actions</h2>
-            <p class="text-sm text-muted mb-4">Control this display. Primary actions are available first.</p>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-auto">
+        <div class="xl:col-span-5 min-w-0 self-start">
+          <div class="card-base rounded-2xl p-6">
+            <h2 class="text-lg font-semibold text-primary">Remote Actions</h2>
+            <p class="text-sm text-muted mt-1 mb-4">Control this display. Primary actions are available first.</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
                 class="btn-primary min-h-[44px] px-4 py-3 rounded-lg transition-all duration-400 flex items-center justify-center gap-2"

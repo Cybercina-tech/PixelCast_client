@@ -273,9 +273,10 @@ def update_env_file(
         if 'DB_PASSWORD' in merged_vars and 'POSTGRES_PASSWORD' not in merged_vars:
             merged_vars['POSTGRES_PASSWORD'] = merged_vars['DB_PASSWORD']
         
-        # Write merged variables to .env file
+        # Write merged variables to .env file (atomic replace).
         try:
-            with open(env_file_path, 'w', encoding='utf-8') as f:
+            tmp_file_path = env_file_path.with_name(f"{env_file_path.name}.tmp")
+            with open(tmp_file_path, 'w', encoding='utf-8') as f:
                 # Write header comment
                 f.write("# PixelCast Signage Environment Configuration\n")
                 f.write("# Generated/Updated by Installation Wizard\n")
@@ -313,11 +314,18 @@ def update_env_file(
                         escaped_value = escape_env_value(str(value))
                         f.write(f"{key}={escaped_value}\n")
                     f.write("\n")
+
+            os.replace(tmp_file_path, env_file_path)
             
             logger.info(f"Successfully wrote {len(merged_vars)} variables to {env_file_path}")
             return True, None
         
         except OSError as e:
+            try:
+                if 'tmp_file_path' in locals() and tmp_file_path.exists():
+                    tmp_file_path.unlink()
+            except OSError:
+                pass
             errno = getattr(e, 'errno', None)
             logger.error(
                 f"Failed to write .env file: {type(e).__name__} errno={errno} path={env_file_path} detail={e!s}",
@@ -325,6 +333,11 @@ def update_env_file(
             )
             return False, f"Failed to write .env file: {e!s} (errno={errno})"
         except Exception as e:
+            try:
+                if 'tmp_file_path' in locals() and tmp_file_path.exists():
+                    tmp_file_path.unlink()
+            except OSError:
+                pass
             error_msg = f"Failed to write .env file: {str(e)}"
             logger.error(error_msg, exc_info=True)
             return False, error_msg

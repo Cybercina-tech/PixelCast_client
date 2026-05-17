@@ -761,7 +761,9 @@ export const publicAPI = {
 // Setup/Installation API
 export const setupAPI = {
   status: () => api.get('/setup/status/'),
-  testDb: (data) => api.post('/setup/db-check/', data),
+  testDb: (data) => api.post('/setup/test-db/', data),
+  install: (data) => api.post('/setup/install/', data),
+  restart: () => api.post('/setup/restart/'),
   runMigrations: () => api.post('/setup/run-migrations/'),
   seedAssets: () => api.post('/setup/seed-assets/'),
   createAdmin: (data) => api.post('/setup/create-admin/', data),

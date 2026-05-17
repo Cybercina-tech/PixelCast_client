@@ -126,29 +126,14 @@
           <p>No active sessions found</p>
         </div>
         <div v-else class="space-y-3">
-          <div
+          <ActiveSessionRow
             v-for="session in sessions"
             :key="session.id"
-            class="flex items-center justify-between p-4 bg-card border border-border-color rounded-lg"
-          >
-            <div class="flex-1">
-              <div class="flex items-center gap-2 mb-1">
-                <p class="font-medium text-primary">{{ session.device || 'Unknown Device' }}</p>
-                <span v-if="session.current" class="px-2 py-0.5 bg-brand/20 text-brand text-xs rounded">Current</span>
-              </div>
-              <p class="text-sm text-secondary">IP: {{ session.ip_address }}</p>
-              <p class="text-xs text-muted mt-1">Last activity: {{ formatDate(session.last_activity) }}</p>
-            </div>
-            <button
-              v-if="!session.current"
-              @click="handleTerminateSession(session.id)"
-              class="px-3 py-1.5 text-sm text-error hover:bg-error/10 rounded transition-colors"
-              :disabled="terminatingSession === session.id"
-            >
-              <span v-if="terminatingSession === session.id">Terminating...</span>
-              <span v-else>Terminate</span>
-            </button>
-          </div>
+            :session="session"
+            :revoking="terminatingSession === session.id"
+            revoke-label="Terminate"
+            @revoke="handleTerminateSession"
+          />
         </div>
         <div v-if="sessions.length > 0" class="mt-4 pt-4 border-t border-border-color">
           <button
@@ -175,6 +160,7 @@ import { authAPI, usersAPI } from '@/services/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Card from '@/components/common/Card.vue'
 import Modal from '@/components/common/Modal.vue'
+import ActiveSessionRow from '@/components/security/ActiveSessionRow.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -329,16 +315,6 @@ const handleLogoutAll = async () => {
   } finally {
     loggingOutAll.value = false
     showLogoutAllModal.value = false
-  }
-}
-
-const formatDate = (dateString) => {
-  if (!dateString) return 'Never'
-  try {
-    const date = new Date(dateString)
-    return date.toLocaleString()
-  } catch {
-    return dateString
   }
 }
 

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>PixelCast — Product documentation</title>
-  <meta name="description" content="PixelCast digital signage: architecture, Docker deployment, environment variables, APIs, SaaS mode, WebSockets, troubleshooting, and operations." />
+  <meta name="description" content="PixelCast digital signage: architecture, Docker and cPanel deployment, environment variables, APIs, WebSockets, troubleshooting, and operations." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -226,44 +226,111 @@ frontend/public/documentation/      # shipped with the SPA build</code></pre>
 
       <section id="installation" class="section-panel">
         <h2>6) Installation</h2>
-        <h3>6a) Development with Docker (recommended)</h3>
+        <p>
+          PixelCast Client supports two professional deployment paths:
+          <strong>Docker</strong> (Dev/Prod servers) and <strong>cPanel + Python App</strong> (shared hosting).
+          Choose one path and follow it end-to-end.
+        </p>
+
+        <div class="grid two">
+          <article class="card">
+            <h3>Path A — Docker</h3>
+            <p>Best for teams, VPS, and environments where Docker is available.</p>
+            <ul>
+              <li>Local development with hot reload: <code>docker-compose.yml</code></li>
+              <li>Production stack with Nginx + Gunicorn/Uvicorn: <code>docker-compose.prod.yml</code></li>
+            </ul>
+          </article>
+          <article class="card">
+            <h3>Path B — cPanel / DirectAdmin</h3>
+            <p>Best for marketplace buyers on shared hosting with no terminal workflow.</p>
+            <ul>
+              <li>Uses <code>passenger_wsgi.py</code> + Setup Python App</li>
+              <li>Installer wizard performs DB check, license validation, migration, and admin bootstrap</li>
+            </ul>
+          </article>
+        </div>
+
+        <h3>6a) Docker — development (recommended for coding)</h3>
         <ol class="steps">
           <li>
-            <h3>Clone and create environment</h3>
+            <h3>Prepare environment</h3>
             <pre><code>cp .env.example .env
-# Edit SECRET_KEY, DB_PASSWORD, ALLOWED_HOSTS, CSRF_TRUSTED_ORIGINS, BASE_URL as needed</code></pre>
+# Set at least: SECRET_KEY, ALLOWED_HOSTS, CSRF_TRUSTED_ORIGINS, BASE_URL</code></pre>
           </li>
           <li>
-            <h3>Start the stack</h3>
+            <h3>Run services</h3>
             <pre><code>docker compose up --build</code></pre>
-            <p>Open the Vite dev app at <code>http://localhost:5173</code>. Django is available through the proxy at
-            same-origin <code>/api/</code> — do not point the browser at <code>http://backend:8000</code> (that hostname
-            exists only inside the Compose network).</p>
+            <p>Open <code>http://localhost:5173</code>. The browser must call same-origin <code>/api/</code>, not <code>backend:8000</code>.</p>
+          </li>
+          <li>
+            <h3>Complete installer</h3>
+            <p>Visit <code>/install</code> and finish database + admin setup.</p>
           </li>
         </ol>
-        <h3>6b) Production with Docker</h3>
+
+        <h3>6b) Docker — production</h3>
         <pre><code>docker compose -f docker-compose.prod.yml up -d --build</code></pre>
         <p>
-          The production compose file maps the frontend container to <strong>host port 8080</strong>
-          (<code>8080:80</code> on the <code>frontend</code> service). To use another host port, change that mapping (or
-          terminate TLS on a reverse proxy and do not publish the container port publicly). Both <code>frontend</code> and
-          <code>backend</code> attach to the external network <code>dokploy-network</code> when present—create it on the
-          host if you deploy behind Traefik/Dokploy. Static documentation is baked into the frontend image from
-          <code>frontend/public/documentation/</code>; avoid bind-mounting <code>documentation/</code> unless you control
-          that path on every host.
+          Default public mapping is <code>8080:80</code> on the frontend service. Adjust ports/reverse proxy as needed.
+          For Traefik/Dokploy-style deployments, ensure required networks and TLS proxy settings are configured.
         </p>
-        <h3>6c) Installer script</h3>
+
+        <h3>6c) cPanel / DirectAdmin — shared hosting installation</h3>
+        <div class="notice warning">
+          <strong>Important:</strong> Use the prepared release package (<code>main.zip</code>).
+          Shared-hosting buyers should not run <code>npm run build</code> or <code>collectstatic</code> manually.
+        </div>
+        <ol class="timeline">
+          <li>
+            <div class="step-dot">1</div>
+            <div class="step-body">
+              <strong>Upload and extract package</strong>
+              <p>Upload <code>main.zip</code> and extract it (preferably outside <code>public_html</code>).</p>
+            </div>
+          </li>
+          <li>
+            <div class="step-dot">2</div>
+            <div class="step-body">
+              <strong>Create database in cPanel</strong>
+              <p>Create DB + user from <em>MySQL Databases</em> / PostgreSQL panel and grant all privileges.
+              Names are often prefixed by hosting username (for example <code>account_appdb</code>).</p>
+            </div>
+          </li>
+          <li>
+            <div class="step-dot">3</div>
+            <div class="step-body">
+              <strong>Setup Python App</strong>
+              <p>In <em>Setup Python App</em>, point to the project <code>app</code> directory.
+              Keep <code>passenger_wsgi.py</code> in project root (already bundled).</p>
+            </div>
+          </li>
+          <li>
+            <div class="step-dot">4</div>
+            <div class="step-body">
+              <strong>Open your domain</strong>
+              <p>The app redirects to <code>/install</code> while unconfigured.</p>
+            </div>
+          </li>
+          <li>
+            <div class="step-dot">5</div>
+            <div class="step-body">
+              <strong>Run setup wizard</strong>
+              <p>Enter purchase code, domain, DB credentials, and admin details.
+              Installation validates license first, then writes <code>.env</code>, runs migrations, seeds data, creates admin,
+              and triggers restart via <code>tmp/restart.txt</code>.</p>
+            </div>
+          </li>
+        </ol>
+
+        <h3>6d) Optional one-command helper (Docker hosts)</h3>
         <pre><code>chmod +x install.sh &amp;&amp; ./install.sh</code></pre>
-        <h3>6d) First-run wizard</h3>
-        <p>
-          After containers are healthy, open <code>/install</code> in the browser to complete database checks and create
-          the first administrator. Setup APIs live under <code>/api/setup/</code>.
-        </p>
+
         <div class="service-grid">
-          <div class="service-card"><strong>db</strong><span>PostgreSQL 15 with a persistent volume</span></div>
-          <div class="service-card"><strong>redis</strong><span>Cache, Celery broker, Channels layer</span></div>
-          <div class="service-card"><strong>backend</strong><span>Django ASGI, migrations on boot</span></div>
-          <div class="service-card"><strong>frontend</strong><span>Dev: Vite; Prod: Nginx + built SPA + this HTML</span></div>
+          <div class="service-card"><strong>db</strong><span>PostgreSQL persistent storage</span></div>
+          <div class="service-card"><strong>redis</strong><span>Cache, Celery broker, channel layer</span></div>
+          <div class="service-card"><strong>backend</strong><span>Django APIs, setup endpoints, migrations</span></div>
+          <div class="service-card"><strong>frontend</strong><span>SPA + documentation + proxy layer</span></div>
         </div>
       </section>
 

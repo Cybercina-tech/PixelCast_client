@@ -109,7 +109,7 @@ services:
       - VITE_BEHIND_HTTPS_PROXY=${VITE_BEHIND_HTTPS_PROXY:-0}
       - VITE_HMR_PROTOCOL=${VITE_HMR_PROTOCOL:-}
       # Published Docker host port (defaults below); must match browser URL for HMR WebSocket.
-      - VITE_HMR_CLIENT_PORT=${FRONTEND_HOST_PORT:-5174}
+      - VITE_HMR_CLIENT_PORT=${FRONTEND_HOST_PORT:-3000}
       - VITE_HMR_HOST=${VITE_HMR_HOST:-}
     volumes:
       - ./frontend:/app
@@ -120,7 +120,7 @@ services:
     # Host port → container 5173. Use FRONTEND_HOST_PORT (not FRONTEND_PORT) so platforms
     # that inject FRONTEND_PORT=80 for unrelated reasons do not steal host :80 from Traefik.
     ports:
-      - "${FRONTEND_HOST_PORT:-5174}:5173"
+      - "${FRONTEND_HOST_PORT:-3000}:5173"
     restart: always
 
 volumes:

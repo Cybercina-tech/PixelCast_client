@@ -120,6 +120,44 @@ class FinalizeSerializer(serializers.Serializer):
     restart_required = serializers.BooleanField(read_only=True)
 
 
+class InstallSerializer(serializers.Serializer):
+    """Serializer for one-shot installation endpoint."""
+
+    # License
+    purchase_code = serializers.CharField(max_length=128)
+    domain = serializers.CharField(required=False, allow_blank=True, max_length=255)
+
+    # Database
+    db_name = serializers.CharField(max_length=255)
+    db_user = serializers.CharField(max_length=255)
+    db_password = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        write_only=True,
+        default="",
+    )
+    db_host = serializers.CharField(max_length=255, default="localhost")
+    db_port = serializers.IntegerField(default=5432)
+
+    # Admin
+    organization_name = serializers.CharField(
+        max_length=255,
+        required=False,
+        allow_blank=True,
+    )
+    admin_username = serializers.CharField(max_length=150)
+    admin_email = serializers.EmailField()
+    admin_password = serializers.CharField(min_length=8, write_only=True)
+    admin_first_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    admin_last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+
+    # Host/application
+    base_url = serializers.CharField(required=False, allow_blank=True)
+    allowed_hosts = serializers.CharField(required=False, allow_blank=True)
+    cors_allowed_origins = serializers.CharField(required=False, allow_blank=True)
+    debug = serializers.BooleanField(required=False, default=False)
+
+
 class SetupStatusSerializer(serializers.Serializer):
     """Serializer for setup status."""
     installed = serializers.BooleanField(read_only=True)
@@ -132,5 +170,7 @@ class SetupStatusSerializer(serializers.Serializer):
         read_only=True,
         help_text='True if DATABASES password is non-empty (value is never returned).',
     )
+    detected_host = serializers.CharField(read_only=True, required=False)
+    detected_base_url = serializers.CharField(read_only=True, required=False)
     db_host = serializers.CharField(read_only=True, required=False)
     db_port = serializers.CharField(read_only=True, required=False)

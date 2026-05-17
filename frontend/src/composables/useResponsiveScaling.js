@@ -1,11 +1,6 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 
-/**
- * Use the same pixel box for scaling math as for the player clip rect.
- * `100vh`/`100vw` often differ from `innerWidth`/`innerHeight` (scrollbars, mobile UI).
- * `visualViewport` matches what is actually visible when available.
- */
-function readViewportSize() {
+function readWindowViewportSize() {
   if (typeof window === 'undefined') return { width: 1920, height: 1080 }
   const vv = window.visualViewport
   if (vv && vv.width >= 1 && vv.height >= 1) {
@@ -14,39 +9,49 @@ function readViewportSize() {
   return { width: window.innerWidth, height: window.innerHeight }
 }
 
+function readElementSize(el) {
+  if (!el) return null
+  const width = el.clientWidth
+  const height = el.clientHeight
+  if (width >= 1 && height >= 1) {
+    return { width, height }
+  }
+  return null
+}
+
 /**
- * Composable for responsive scaling calculations
- * Handles template scaling to fit any screen size while maintaining aspect ratio
+ * Composable for responsive scaling calculations.
+ * @param {import('vue').Ref} template - active template
+ * @param {{ fit?: 'cover' | 'contain', containerRef?: import('vue').Ref }} [options]
  */
-export function useResponsiveScaling(template) {
-  const initial = readViewportSize()
+export function useResponsiveScaling(template, options = {}) {
+  const fitMode = options.fit === 'contain' ? 'contain' : 'cover'
+  const containerRef = options.containerRef
+
+  const initial = readWindowViewportSize()
   const viewportWidth = ref(initial.width)
   const viewportHeight = ref(initial.height)
-  
-  // Update viewport dimensions on resize
+
+  const readViewportSize = () => {
+    const fromContainer = readElementSize(containerRef?.value)
+    if (fromContainer) return fromContainer
+    return readWindowViewportSize()
+  }
+
   const updateViewport = () => {
     const { width, height } = readViewportSize()
     viewportWidth.value = width
     viewportHeight.value = height
   }
-  
-  // Debounced resize handler for performance
+
   let resizeTimeout = null
   const handleResize = () => {
-    if (resizeTimeout) {
-      clearTimeout(resizeTimeout)
-    }
+    if (resizeTimeout) clearTimeout(resizeTimeout)
     resizeTimeout = setTimeout(() => {
       updateViewport()
-    }, 100) // 100ms debounce
+    }, 50)
   }
-  
-  /**
-   * Contain mode (full template visible, no cropping):
-   * - Entire template pixel rect fits inside the viewport; aspect ratio preserved.
-   * - Letterboxing on one axis when viewport and template aspects differ.
-   * (Cover mode would fill the screen but clip edge widgets — bad for signage layouts.)
-   */
+
   const scaleFactor = computed(() => {
     if (!template.value) return 1
 
@@ -65,54 +70,87 @@ export function useResponsiveScaling(template) {
 
     const scaleX = viewportWidth.value / templateWidth
     const scaleY = viewportHeight.value / templateHeight
-    let scale = Math.min(scaleX, scaleY)
+    let scale = fitMode === 'contain' ? Math.min(scaleX, scaleY) : Math.max(scaleX, scaleY)
     scale *= 1 - 1e-6
-    // Slight inset so the full canvas stays visible (overscan / safe area on TVs)
-    scale *= 0.96
+    if (fitMode === 'contain') {
+      scale *= 0.96
+    }
 
     return Math.max(0.01, Math.min(scale, 10))
   })
-  
-  // Calculate scaled dimensions
+
   const scaledWidth = computed(() => {
     if (!template.value) return viewportWidth.value
     return (template.value.width || 1920) * scaleFactor.value
   })
-  
+
   const scaledHeight = computed(() => {
     if (!template.value) return viewportHeight.value
     return (template.value.height || 1080) * scaleFactor.value
   })
-  
+
   const offsetX = computed(() => {
     if (!template.value) return 0
     const gap = viewportWidth.value - scaledWidth.value
-    return Math.max(0, Math.floor(gap * 0.5 * 1000) / 1000)
+    return Math.round(gap * 0.5 * 1000) / 1000
   })
 
   const offsetY = computed(() => {
     if (!template.value) return 0
     const gap = viewportHeight.value - scaledHeight.value
-    return Math.max(0, Math.floor(gap * 0.5 * 1000) / 1000)
+    return Math.round(gap * 0.5 * 1000) / 1000
   })
-  
-  // Setup resize listener (call from component's onMounted)
+
+  let resizeObserver = null
+  let stopContainerWatch = null
+
+  const disconnectContainerObserver = () => {
+    if (resizeObserver) {
+      resizeObserver.disconnect()
+      resizeObserver = null
+    }
+  }
+
+  const bindContainerObserver = (el) => {
+    disconnectContainerObserver()
+    if (!el || typeof ResizeObserver === 'undefined') {
+      updateViewport()
+      return
+    }
+    resizeObserver = new ResizeObserver(() => {
+      handleResize()
+    })
+    resizeObserver.observe(el)
+    updateViewport()
+  }
+
   const setupResizeListener = () => {
     updateViewport()
     window.addEventListener('resize', handleResize)
-    // Also listen to orientation change for mobile devices
     window.addEventListener('orientationchange', handleResize)
+    document.addEventListener('fullscreenchange', handleResize)
     const vv = window.visualViewport
     if (vv) {
       vv.addEventListener('resize', handleResize)
       vv.addEventListener('scroll', handleResize)
     }
+
+    if (containerRef) {
+      stopContainerWatch = watch(
+        containerRef,
+        (el) => {
+          if (el) bindContainerObserver(el)
+          else disconnectContainerObserver()
+        },
+        { immediate: true },
+      )
+    }
   }
-  
-  // Cleanup (call from component's onUnmounted)
+
   const cleanupResizeListener = () => {
     window.removeEventListener('resize', handleResize)
     window.removeEventListener('orientationchange', handleResize)
+    document.removeEventListener('fullscreenchange', handleResize)
     const vv = window.visualViewport
     if (vv) {
       vv.removeEventListener('resize', handleResize)
@@ -122,8 +160,13 @@ export function useResponsiveScaling(template) {
       clearTimeout(resizeTimeout)
       resizeTimeout = null
     }
+    disconnectContainerObserver()
+    if (stopContainerWatch) {
+      stopContainerWatch()
+      stopContainerWatch = null
+    }
   }
-  
+
   return {
     viewportWidth,
     viewportHeight,
@@ -134,7 +177,6 @@ export function useResponsiveScaling(template) {
     offsetY,
     updateViewport,
     setupResizeListener,
-    cleanupResizeListener
+    cleanupResizeListener,
   }
 }
-

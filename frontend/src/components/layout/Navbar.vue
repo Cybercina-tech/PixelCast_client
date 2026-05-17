@@ -206,9 +206,15 @@
               ref="userMenuDropdown"
               class="user-dropdown"
             >
-              <div class="dropdown-header">
-                <p class="user-name">{{ user?.username || 'Guest' }}</p>
-                <p class="user-email">{{ user?.email || '' }}</p>
+              <div class="user-dropdown-header">
+                <p class="user-display-name" :title="userDisplayName">{{ userDisplayName }}</p>
+                <p
+                  v-if="userSecondaryLine"
+                  class="user-secondary-line"
+                  :title="userSecondaryLine"
+                >
+                  {{ userSecondaryLine }}
+                </p>
               </div>
               <div class="dropdown-menu">
                 <router-link
@@ -307,6 +313,33 @@ const unreadNotifications = computed(() => notificationsStore.unreadCount)
 
 // User
 const user = computed(() => authStore.user)
+
+function normalizeIdentity(value) {
+  return (value || '').trim().toLowerCase()
+}
+
+const userDisplayName = computed(() => {
+  const u = user.value
+  if (!u) return 'Guest'
+  const fullName = (u.full_name || '').trim()
+  if (fullName) return fullName
+  const username = (u.username || '').trim()
+  if (username) return username
+  return (u.email || '').trim() || 'Guest'
+})
+
+const userSecondaryLine = computed(() => {
+  const u = user.value
+  if (!u) return ''
+  const primary = normalizeIdentity(userDisplayName.value)
+  const email = (u.email || '').trim()
+  const username = (u.username || '').trim()
+  if (email && normalizeIdentity(email) !== primary) return email
+  if (username && normalizeIdentity(username) !== primary && normalizeIdentity(username) !== normalizeIdentity(email)) {
+    return username
+  }
+  return ''
+})
 
 // Breadcrumb generation
 const breadcrumbs = computed(() => {
@@ -977,23 +1010,40 @@ onUnmounted(() => {
   box-shadow: 0 0 10px rgba(0, 210, 255, 0.2);
 }
 
-.user-name {
+.user-dropdown-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  padding: 1rem;
+  border-bottom: 1px solid var(--border-color);
+  min-width: 0;
+}
+
+.user-display-name {
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-heading);
-  margin-bottom: 0.25rem;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.user-email {
+.user-secondary-line {
   font-size: 0.75rem;
   color: var(--text-muted);
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.dark .user-name {
+.dark .user-display-name {
   color: rgba(255, 255, 255, 0.9);
 }
 
-.dark .user-email {
+.dark .user-secondary-line {
   color: rgba(255, 255, 255, 0.5);
 }
 

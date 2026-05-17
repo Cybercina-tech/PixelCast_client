@@ -55,7 +55,7 @@
       class="template-container"
       :style="templateContainerStyle"
     >
-      <!-- Logical canvas: template pixel space (e.g. 1920×1080), scaled to fit viewport (contain) -->
+      <!-- Logical canvas: template pixel space (e.g. 1920×1080), scaled to fill viewport (cover) -->
       <div class="template-scaler" :key="templateMountKey" :style="templateScalerStyle">
         <LayerRenderer
           v-for="layer in sortedLayers"
@@ -227,22 +227,26 @@ function handlePaired({ screenId, deviceToken }) {
 const sortedLayers = computed(() => buildPlaybackLayers(template.value))
 
 const {
-  viewportWidth,
-  viewportHeight,
   scaleFactor,
   offsetX,
   offsetY,
   updateViewport,
   setupResizeListener,
   cleanupResizeListener,
-} = useResponsiveScaling(template)
+} = useResponsiveScaling(template, { fit: 'cover', containerRef: playerContainer })
 
 watch(
   () => template.value,
   () => {
     nextTick(() => updateViewport())
-  }
+  },
 )
+
+watch(status, (s) => {
+  if (s === 'success') {
+    nextTick(() => updateViewport())
+  }
+})
 
 /** Fill dynamic viewport (mobile browser chrome); pixel box kept via composable for template scaling only */
 const containerStyle = computed(() => ({
@@ -258,14 +262,8 @@ const containerStyle = computed(() => ({
 }))
 
 const templateContainerStyle = computed(() => ({
-  width: `${viewportWidth.value}px`,
-  height: `${viewportHeight.value}px`,
-  maxWidth: '100%',
-  maxHeight: '100%',
-  position: 'relative',
   visibility: 'visible',
   opacity: 1,
-  overflow: 'hidden',
 }))
 
 const templateScalerStyle = computed(() => {
@@ -381,9 +379,6 @@ onUnmounted(() => {
   padding: 0;
   position: fixed;
   inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 100%;
   max-width: 100%;
   height: 100%;
@@ -530,8 +525,11 @@ onUnmounted(() => {
 }
 
 .template-container {
-  position: relative;
-  overflow: visible;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
   transform: translateZ(0);
   -webkit-transform: translateZ(0);
   contain: layout style;

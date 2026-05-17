@@ -1,5 +1,5 @@
 <template>
-  <div class="w-full h-52 min-h-[13rem] sm:h-64 sm:min-h-[16rem]">
+  <div :class="containerClass">
     <canvas ref="chartCanvas"></canvas>
   </div>
 </template>
@@ -7,6 +7,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { Chart as ChartJS } from 'chart.js'
+import { useThemeStore } from '@/stores/theme'
 
 // Chart.js components are registered globally in plugins/chartjs.js
 // No need to register here - they're already available
@@ -25,7 +26,13 @@ const props = defineProps({
     type: Object,
     default: () => ({}),
   },
+  containerClass: {
+    type: String,
+    default: 'w-full h-52 min-h-[13rem] sm:h-64 sm:min-h-[16rem]',
+  },
 })
+
+const themeStore = useThemeStore()
 
 const chartCanvas = ref(null)
 let chartInstance = null
@@ -104,5 +111,22 @@ watch(
     }
   },
   { deep: true }
+)
+
+watch(
+  () => themeStore.theme,
+  () => {
+    if (chartInstance) {
+      chartInstance.options = {
+        responsive: true,
+        maintainAspectRatio: false,
+        ...props.options,
+      }
+      if (props.data) {
+        chartInstance.data = props.data
+      }
+      chartInstance.update('none')
+    }
+  }
 )
 </script>

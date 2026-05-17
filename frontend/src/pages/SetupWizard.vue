@@ -129,10 +129,58 @@
                 </div>
               </div>
 
+              <div class="max-w-xl mx-auto space-y-2 rounded-xl border border-white/10 bg-white/5 p-3">
+                <div>
+                  <label for="license-code" class="block text-xs font-medium text-slate-400 mb-1">
+                    Purchase Code <span class="text-red-400">*</span>
+                  </label>
+                  <input
+                    id="license-code"
+                    v-model="setupData.license.purchase_code"
+                    type="text"
+                    required
+                    class="cosmic-input w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white placeholder-slate-500 focus:outline-none transition-all duration-300 text-sm"
+                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                    autocomplete="off"
+                  />
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label for="install-domain" class="block text-xs font-medium text-slate-400 mb-1">
+                      Domain <span class="text-red-400">*</span>
+                    </label>
+                    <input
+                      id="install-domain"
+                      v-model="setupData.license.domain"
+                      type="text"
+                      required
+                      class="cosmic-input w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white placeholder-slate-500 focus:outline-none transition-all duration-300 text-sm"
+                      placeholder="example.com"
+                    />
+                  </div>
+                  <div>
+                    <label for="install-base-url" class="block text-xs font-medium text-slate-400 mb-1">
+                      Base URL
+                    </label>
+                    <input
+                      id="install-base-url"
+                      v-model="setupData.license.base_url"
+                      type="url"
+                      class="cosmic-input w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white placeholder-slate-500 focus:outline-none transition-all duration-300 text-sm"
+                      placeholder="https://example.com"
+                    />
+                  </div>
+                </div>
+                <p class="text-[11px] text-slate-400">
+                  Domain is detected automatically; you can edit it if needed.
+                </p>
+              </div>
+
               <div class="flex justify-center pt-2">
                 <button
                   @click="nextStep"
                   type="button"
+                  :disabled="!canProceedFromWelcome"
                   class="cosmic-btn-launch px-6 py-3 rounded-xl text-sm font-semibold text-white flex items-center gap-2 border-0"
                 >
                   Start Installation
@@ -153,10 +201,8 @@
                 </div>
                 <h2 class="cosmic-heading text-base sm:text-lg font-bold text-white mb-0.5">Database Configuration</h2>
                 <p class="text-slate-400 text-[11px]">
-                  Values below match your server <code class="text-slate-300">.env</code> / Docker defaults. Before
-                  <code class="text-slate-300">docker compose up</code>, set your domain in <code class="text-slate-300">.env</code>
-                  (<code class="text-slate-300">ALLOWED_HOSTS</code>, <code class="text-slate-300">BASE_URL</code>, CSRF). The database password is optional to change; edit
-                  <code class="text-slate-300">DB_PASSWORD</code> there if you need a custom secret (best before first DB volume init).
+                  Enter the database credentials you created in your hosting panel. cPanel databases are often prefixed with your account username (example:
+                  <code class="text-slate-300">accountname_appdb</code>).
                 </p>
               </div>
 
@@ -233,15 +279,11 @@
                 </div>
                 <div class="rounded-xl border border-indigo-500/25 bg-indigo-500/10 p-3 text-[11px] text-slate-300 space-y-2 -mt-0.5">
                   <p>
-                    <strong class="text-indigo-300">Default setup:</strong>
-                    The password field is pre-filled with the Pixelcast client Docker default (different from the main ScreenGram repo). You can continue as-is.
+                    <strong class="text-indigo-300">Shared hosting tip:</strong>
+                    If your provider requires localhost, keep host as <code class="text-slate-300">localhost</code>. Otherwise use the DB host shown in cPanel.
                   </p>
                   <p>
-                    To use a different password, set <code class="text-slate-300">DB_PASSWORD</code> and
-                    <code class="text-slate-300">POSTGRES_PASSWORD</code> in <code>.env</code> before the first database init, or create the database manually and enter matching credentials here.
-                  </p>
-                  <p class="text-slate-400">
-                    For production on the public internet, use a strong unique password in <code>.env</code>.
+                    The installer tests these credentials before making any changes.
                   </p>
                 </div>
 
@@ -601,56 +643,13 @@
                   <h3 class="cosmic-heading text-2xl font-bold text-white mb-2">Installation Complete!</h3>
                   <p class="text-slate-400 mb-4">Your PixelCast command center is ready.</p>
 
-                  <div
-                    v-if="!postInstallLicenseDone"
-                    class="max-w-md mx-auto mb-6 rounded-xl border border-white/10 bg-white/5 p-4 text-left"
-                  >
-                    <p class="text-xs text-amber-300/90 mb-2">License activation is required to continue (uses your new admin account).</p>
-                    <label class="block text-[11px] text-slate-500 mb-1">Purchase code</label>
-                    <input
-                      v-model="postInstallPurchaseCode"
-                      type="text"
-                      class="cosmic-input w-full px-3 py-2 rounded-lg bg-black/40 border border-white/10 text-white text-sm mb-3"
-                      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                      autocomplete="off"
-                    />
-                    <div class="flex flex-wrap gap-2 justify-center">
-                      <button
-                        type="button"
-                        class="px-4 py-2 rounded-lg text-sm text-slate-200 border border-white/20 bg-white/5 hover:bg-white/10 transition-colors disabled:opacity-50 disabled:pointer-events-none"
-                        :disabled="postInstallLicenseLoading || postInstallLicenseCooldownSeconds > 0"
-                        @click="activateLicenseAfterInstall"
-                      >
-                        {{
-                          postInstallLicenseLoading
-                            ? 'Activating…'
-                            : postInstallLicenseCooldownSeconds > 0
-                              ? `Retry in ${postInstallLicenseCooldownSeconds}s`
-                              : 'Activate license'
-                        }}
-                      </button>
-                    </div>
-                    <p v-if="postInstallLicenseError" class="text-red-400 text-xs mt-2 text-center">{{ postInstallLicenseError }}</p>
-                  </div>
-                  <p v-else class="text-emerald-400/90 text-sm mb-4">License activated successfully. You can now sign in.</p>
-
                   <router-link
-                    v-if="postInstallLicenseDone"
                     to="/login"
                     class="cosmic-btn inline-flex items-center px-8 py-3.5 rounded-xl text-base font-semibold text-white"
                   >
                     Go to Login
                     <ArrowRightIcon class="w-5 h-5 ml-2" />
                   </router-link>
-                  <button
-                    v-else
-                    type="button"
-                    disabled
-                    class="inline-flex items-center px-8 py-3.5 rounded-xl text-base font-semibold text-slate-400 border border-white/15 bg-white/5 cursor-not-allowed"
-                    title="Activate license to continue"
-                  >
-                    Activate license to continue
-                  </button>
                 </div>
               </transition>
             </div>
@@ -662,7 +661,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   RocketLaunchIcon,
@@ -677,8 +676,7 @@ import {
   EyeSlashIcon,
 } from '@heroicons/vue/24/outline'
 import axios from 'axios'
-import { setupAPI, licenseAPI } from '@/services/api'
-import { useAuthStore } from '@/stores/auth'
+import { setupAPI } from '@/services/api'
 import { normalizeApiError } from '@/utils/apiError'
 import {
   getBrowserApiBaseUrl,
@@ -687,28 +685,12 @@ import {
 } from '@/utils/apiBaseUrl'
 
 const router = useRouter()
-const authStore = useAuthStore()
-
-const postInstallPurchaseCode = ref('')
-const postInstallLicenseLoading = ref(false)
-const postInstallLicenseError = ref('')
-const postInstallLicenseDone = ref(false)
-const postInstallLicenseCooldownSeconds = ref(0)
-let postInstallCooldownTimer = null
-
-function clearPostInstallLicenseCooldown() {
-  if (postInstallCooldownTimer) {
-    clearInterval(postInstallCooldownTimer)
-    postInstallCooldownTimer = null
-  }
-  postInstallLicenseCooldownSeconds.value = 0
-}
 
 // Steps configuration
 const steps = [
   { label: 'Welcome', icon: RocketLaunchIcon },
   { label: 'Database', icon: ServerIcon },
-  { label: 'Developer', icon: ShieldCheckIcon },
+  { label: 'Admin', icon: ShieldCheckIcon },
   { label: 'System', icon: Cog6ToothIcon },
 ]
 
@@ -728,6 +710,11 @@ const DEFAULT_DB_PASSWORD = 'PCgPxCl_X8nM4pQ7wK2vL9jH5cF3yT6sA1eB0dZgM'
 
 // Setup data
 const setupData = reactive({
+  license: {
+    purchase_code: '',
+    domain: '',
+    base_url: '',
+  },
   db: {
     host: 'db',
     port: 5432,
@@ -763,18 +750,18 @@ const errors = ref({})
 // Progress steps — System Boot Sequence copy
 const progressSteps = reactive([
   {
-    label: 'Initializing Core Modules',
-    description: 'Applying schema changes to your database...',
+    label: 'Validating Purchase License',
+    description: 'Checking your purchase code with the licensing gateway...',
     status: 'pending', // pending, loading, completed, error
   },
   {
-    label: 'Syncing Galactic Assets',
-    description: 'Initializing default configurations...',
+    label: 'Provisioning Database',
+    description: 'Saving environment and applying schema migrations...',
     status: 'pending',
   },
   {
-    label: 'Finalizing Installation',
-    description: 'Creating lock file and completing setup...',
+    label: 'Finalizing Platform Setup',
+    description: 'Creating admin account, seeding defaults, and restarting app...',
     status: 'pending',
   },
 ])
@@ -783,6 +770,10 @@ const progressSteps = reactive([
 const overallProgress = computed(() => {
   const completed = progressSteps.filter(s => s.status === 'completed').length
   return Math.round((completed / progressSteps.length) * 100)
+})
+
+const canProceedFromWelcome = computed(() => {
+  return Boolean(setupData.license.purchase_code.trim() && setupData.license.domain.trim())
 })
 
 // Methods — Flight Path node classes
@@ -880,102 +871,75 @@ const createAdmin = async () => {
   }
 }
 
-async function activateLicenseAfterInstall() {
-  const code = postInstallPurchaseCode.value.trim()
-  if (!code) {
-    postInstallLicenseError.value = 'Enter your purchase code'
-    return
-  }
-  postInstallLicenseLoading.value = true
-  postInstallLicenseError.value = ''
-  try {
-    const loginResult = await authStore.login({
-      username: setupData.admin.username.trim().toLowerCase(),
-      password: setupData.admin.password,
-    })
-    if (loginResult?.needs2fa) {
-      postInstallLicenseError.value =
-        'Two-factor authentication is required. Log in manually, then open Settings → License.'
-      return
-    }
-    const host =
-      typeof window !== 'undefined' && window.location?.host ? window.location.host : ''
-    await licenseAPI.activate({ purchase_code: code, domain: host })
-    clearPostInstallLicenseCooldown()
-    postInstallLicenseDone.value = true
-  } catch (e) {
-    const retrySec = e.retryAfterSeconds
-    if (e?.response?.status === 429 && Number.isFinite(retrySec) && retrySec > 0) {
-      clearPostInstallLicenseCooldown()
-      postInstallLicenseCooldownSeconds.value = retrySec
-      postInstallCooldownTimer = setInterval(() => {
-        postInstallLicenseCooldownSeconds.value -= 1
-        if (postInstallLicenseCooldownSeconds.value <= 0) clearPostInstallLicenseCooldown()
-      }, 1000)
-      postInstallLicenseError.value = `Too many requests. Please wait before trying again.`
-    } else {
-      const msg =
-        e?.response?.data?.message ||
-        e?.response?.data?.detail ||
-        e?.message ||
-        'Activation failed'
-      postInstallLicenseError.value = typeof msg === 'string' ? msg : 'Activation failed'
-    }
-  } finally {
-    postInstallLicenseLoading.value = false
-  }
-}
-
-onUnmounted(() => clearPostInstallLicenseCooldown())
-
 const startInstallation = async () => {
-  // Step 1: Run migrations
+  const normalizedDomain = setupData.license.domain.trim().replace(/^https?:\/\//, '').split('/')[0]
+  const resolvedBaseUrl = setupData.license.base_url.trim() || `${window.location.protocol}//${normalizedDomain}`
+
+  // Step 1: License preflight
   progressSteps[0].status = 'loading'
+  progressSteps[1].status = 'pending'
+  progressSteps[2].status = 'pending'
+  progressSteps[0].description = 'Contacting license gateway...'
+
   try {
-    await setupAPI.runMigrations()
-    progressSteps[0].status = 'completed'
-    progressSteps[0].description = 'Database migrations applied successfully'
-  } catch (error) {
-    const parsed = error.apiError || normalizeApiError(error)
-    progressSteps[0].status = 'error'
-    progressSteps[0].description = parsed.userMessage || 'Migration failed'
-    return
-  }
-  
-  // Step 2: Seed default notification events and related assets
-  progressSteps[1].status = 'loading'
-  try {
-    const seedRes = await setupAPI.seedAssets()
-    progressSteps[1].status = 'completed'
-    progressSteps[1].description = seedRes.data?.message || 'System assets configured'
-  } catch (error) {
-    const parsed = error.apiError || normalizeApiError(error)
-    progressSteps[1].status = 'error'
-    progressSteps[1].description = parsed.userMessage || 'Asset seeding failed'
-    return
-  }
-  
-  // Step 3: Finalize (send db credentials so .env gets DB_PASSWORD / POSTGRES_PASSWORD; empty password => username used as password)
-  progressSteps[2].status = 'loading'
-  try {
-    await setupAPI.finalize({
+    progressSteps[1].status = 'loading'
+    progressSteps[1].description = 'Verifying database access and writing environment...'
+
+    progressSteps[2].status = 'loading'
+    progressSteps[2].description = 'Running migrations, creating admin, and restarting app...'
+
+    await setupAPI.install({
+      purchase_code: setupData.license.purchase_code,
+      domain: normalizedDomain,
+      base_url: resolvedBaseUrl,
       db_name: setupData.db.name,
       db_user: setupData.db.user,
-      db_password: setupData.db.password || undefined,
+      db_password: setupData.db.password,
       db_host: setupData.db.host,
       db_port: setupData.db.port,
+      organization_name: setupData.admin.organization_name,
+      admin_username: setupData.admin.username,
+      admin_email: setupData.admin.email,
+      admin_password: setupData.admin.password,
+      admin_first_name: setupData.admin.first_name,
+      admin_last_name: setupData.admin.last_name,
+      allowed_hosts: normalizedDomain,
+      cors_allowed_origins: resolvedBaseUrl,
     })
+
+    progressSteps[0].status = 'completed'
+    progressSteps[0].description = 'License verified successfully'
+    progressSteps[1].status = 'completed'
+    progressSteps[1].description = 'Database and environment configured'
     progressSteps[2].status = 'completed'
     progressSteps[2].description = 'Installation finalized successfully'
     installationComplete.value = true
   } catch (error) {
     const parsed = error.apiError || normalizeApiError(error)
+    const message = parsed.userMessage || 'Installation failed'
+    if (progressSteps[0].status === 'loading') {
+      progressSteps[0].status = 'error'
+      progressSteps[0].description = message
+      return
+    }
+    if (progressSteps[1].status === 'loading') {
+      progressSteps[1].status = 'error'
+      progressSteps[1].description = message
+      return
+    }
     progressSteps[2].status = 'error'
-    progressSteps[2].description = parsed.userMessage || 'Finalization failed'
+    progressSteps[2].description = message
   }
 }
 
 onMounted(async () => {
+  const detectedHost = typeof window !== 'undefined' ? window.location.host : ''
+  const detectedDomain = detectedHost.split(':')[0]
+  if (detectedDomain) {
+    setupData.license.domain = detectedDomain
+    setupData.license.base_url = `${window.location.protocol}//${detectedDomain}`
+  }
+
   // Check installation status with retry to survive transient 502 during backend startup.
   const apiBase = normalizeApiBaseForBrowser(
     ensureBrowserReachableApiBase(getBrowserApiBaseUrl(), '/api')
@@ -1001,6 +965,10 @@ onMounted(async () => {
       setupData.db.user = response.data.db_user || setupData.db.user
       // Always pre-fill the compose default so the field is not empty; DB_PASSWORD in .env may differ — user can edit.
       setupData.db.password = DEFAULT_DB_PASSWORD
+      if (response.data.detected_host) {
+        setupData.license.domain = response.data.detected_host
+        setupData.license.base_url = `${window.location.protocol}//${response.data.detected_host}`
+      }
       break
     } catch (error) {
       const statusCode = error?.response?.status

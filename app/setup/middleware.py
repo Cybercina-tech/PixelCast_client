@@ -27,6 +27,8 @@ class InstallationCheckMiddleware(MiddlewareMixin):
     # Paths that should be allowed even if installation is not completed
     ALLOWED_PATHS = [
         '/api/setup/',  # All setup endpoints
+        '/install',
+        '/setup',
         # Public marketing JSON (SPA may call these before installed.lock exists)
         '/api/public/pricing/',
         '/api/public/deployment/',
@@ -82,11 +84,5 @@ class InstallationCheckMiddleware(MiddlewareMixin):
                 'redirect': '/install'
             }, status=503)
         
-        # Regular web request - redirect to install page
-        # Or return 503 if preferred
-        return JsonResponse({
-            'error': 'installation_required',
-            'message': 'Installation is required. Please complete the installation wizard.',
-            'status': 'not_installed',
-            'redirect': '/install'
-        }, status=503)
+        # Regular browser navigation should be redirected to installer.
+        return HttpResponseRedirect('/install')

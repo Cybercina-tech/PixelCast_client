@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from django.utils import timezone
 from rest_framework_simplejwt.tokens import RefreshToken
 
 
@@ -27,6 +28,7 @@ class ScreenGramRefreshToken(RefreshToken):
             token['client_ua'] = str(client_ua)[:512]
         if client_ip:
             token['client_ip'] = str(client_ip)[:128]
+        token['last_seen_at'] = timezone.now().isoformat()
         if impersonator_id is not None:
             token['impersonator_id'] = str(impersonator_id)
         return token
@@ -36,7 +38,7 @@ class ScreenGramRefreshToken(RefreshToken):
         access = super().access_token
         if 'impersonator_id' in self:
             access['impersonator_id'] = self['impersonator_id']
-        for key in ('sid', 'client_ua', 'client_ip'):
+        for key in ('sid', 'client_ua', 'client_ip', 'last_seen_at'):
             if key in self:
                 access[key] = self[key]
         return access
